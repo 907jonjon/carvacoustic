@@ -43,6 +43,7 @@ class PartPlacement:
     x: float              # left edge origin on sheet (in design units)
     y: float              # bottom edge origin on sheet
     rotated_90: bool      # True → design rotated 90° CCW before placement
+    part_index: int = 0   # index into parts list (used by slat layout)
 
 
 @dataclass
@@ -233,5 +234,111 @@ def run_layout(boundary_poly: Polygon, config: CanonicalConfig) -> LayoutResult:
             if usable_sheet_area > 0
             else 0.0
         )
+
+    return LayoutResult(sheets=sheets, overflow=overflow)
+
+
+def run_slat_layout(parts: list[dict], config: CanonicalConfig) -> LayoutResult:
+    """
+    Place unique slat parts (each with its own bounding box) onto sheets.
+    Returns a LayoutResult with per-sheet placements that include part_index.
+
+    Used by the v2 export bundle to lay individual slat cut profiles onto sheets.
+    """
+    mat = config.fabrication.material
+    tool = config.fabrication.tool
+    layout_cfg = config.layout
+
+    sheet_w = mat.sheet_width
+    sheet_h = mat.sheet_height
+    border = tool.border_gap
+    clearance = tool.clearance
+
+    usable_w = sheet_w - 2.0 * border
+    usable_h = sheet_h - 2.0 * border
+
+    allow_rotate = (layout_cfg.rotation_mode.value != "none") and not layout_cfg.preserve_grain
+
+    sheets: list[SheetLayout] = []
+    sheet_rows: list[list[tuple[float, float, float]]] = []
+
+    def new_sheet() -> int:
+        sheets.append(SheetLayout(sheet_index=len(sheets) + 1))
+        sheet_rows.append([])
+        return len(sheets) - 1
+
+    def try_place(si: int, fw: float, fh: float) -> tuple[float, float] | None:
+        rows = sheet_rows[si]
+        for i, (cur_x, row_h, row_y) in enumerate(rows):
+            if fh <= row_h and cur_x + fw <= usable_w:
+                x, y = border + cur_x, border + row_y
+                rows[i] = (cur_x + fw + clearance, row_h, row_y)
+                return x, y
+        next_y = sum(rh for _, rh, _ in rows) if rows else 0.0
+        fits = (next_y + fh <= usable_h and fw <= usable_w)
+        fits_lenient = (not rows and fw <= sheet_w and fh <= sheet_h)
+        if fits or fits_lenient:
+            rows.append((fw + clearance, fh + clearance, next_y))
+            return border, border + next_y
+        return None
+
+    current_si = new_sheet()
+    overflow = 0
+    total_part_area = 0.0
+
+    # Sort by descending bounding-box area (first-fit decreasing)
+    indexed = sorted(enumerate(parts), key=lambda t: t[1]["area"], reverse=True)
+
+    for orig_idx, part in indexed:
+        bbox = part["bounding_box"]
+        fw = bbox[2] - bbox[0]
+        fh = bbox[3] - bbox[1]
+        placed = False
+
+        orientations: list[tuple[float, float, bool]] = [(fw, fh, False)]
+        if allow_rotate:
+            orientations.append((fh, fw, True))
+
+        for attempt_fw, attempt_fh, rotated in orientations:
+            for si in range(len(sheets)):
+                result = try_place(si, attempt_fw, attempt_fh)
+                if result is not None:
+                    px, py = result
+                    sheets[si].placements.append(PartPlacement(
+                        copy_index=0,
+                        x=px,
+                        y=py,
+                        rotated_90=rotated,
+                        part_index=orig_idx,
+                    ))
+                    total_part_area += fw * fh
+                    placed = True
+                    break
+            if placed:
+                break
+
+        if not placed:
+            current_si = new_sheet()
+            for attempt_fw, attempt_fh, rotated in orientations:
+                result = try_place(current_si, attempt_fw, attempt_fh)
+                if result is not None:
+                    px, py = result
+                    sheets[current_si].placements.append(PartPlacement(
+                        copy_index=0, x=px, y=py, rotated_90=rotated, part_index=orig_idx,
+                    ))
+                    total_part_area += fw * fh
+                    placed = True
+                    break
+            if not placed:
+                overflow += 1
+
+    usable_area = usable_w * usable_h
+    for sheet in sheets:
+        sheet_area = sum(
+            (parts[p.part_index]["bounding_box"][2] - parts[p.part_index]["bounding_box"][0]) *
+            (parts[p.part_index]["bounding_box"][3] - parts[p.part_index]["bounding_box"][1])
+            for p in sheet.placements
+        )
+        sheet.utilization = min(sheet_area / usable_area, 1.0) if usable_area > 0 else 0.0
 
     return LayoutResult(sheets=sheets, overflow=overflow)

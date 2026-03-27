@@ -1,23 +1,25 @@
 /**
  * Re-export canonical types from shared/types.ts.
- * Also provides Zod schemas for runtime validation in API routes.
+ * Also provides Zod schemas for runtime validation in API proxy routes.
  */
 
 export type {
   Units,
   ProjectMode,
-  ReservedFutureMode,
   BoundaryType,
-  PatternFamily,
   Symmetry,
   GrainDirection,
   DogboneStyle,
   RotationMode,
   LabelPosition,
   ExportFormat,
+  SurfaceType,
+  FlowDirection,
   ConfigProject,
   ConfigBoundary,
-  ConfigPattern,
+  SurfaceConfig,
+  SlatConfig,
+  BackingConfig,
   ConfigMaterial,
   ConfigTool,
   ConfigFabrication,
@@ -54,12 +56,6 @@ export const BoundaryTypeSchema = z.enum([
   "svg_import",
 ]);
 
-export const PatternFamilySchema = z.enum([
-  "wave_field",
-  "contour_bands",
-  "slat_rib",
-]);
-
 export const SymmetrySchema = z.enum(["none", "x", "y", "xy"]);
 
 export const GrainDirectionSchema = z.enum(["x", "y"]);
@@ -68,9 +64,13 @@ export const DogboneStyleSchema = z.enum(["classic", "none"]);
 
 export const RotationModeSchema = z.enum(["90_only", "any", "none"]);
 
-export const LabelPositionSchema = z.enum(["footer", "header", "center"]);
+export const LabelPositionSchema = z.enum(["footer", "header", "center", "centroid", "base"]);
 
 export const ExportFormatSchema = z.enum(["dxf", "svg", "pdf", "json"]);
+
+export const SurfaceTypeSchema = z.enum(["wave", "terrain", "ripple", "mountain"]);
+
+export const FlowDirectionSchema = z.enum(["x", "y", "radial"]);
 
 export const ConfigProjectSchema = z.object({
   name: z.string().min(1).max(200),
@@ -87,14 +87,38 @@ export const ConfigBoundarySchema = z.object({
   safe_margin: z.number().min(0),
 });
 
-export const ConfigPatternSchema = z.object({
-  family: PatternFamilySchema,
-  density: z.number().min(0).max(1),
-  spacing: z.number().positive(),
-  line_width: z.number().positive(),
-  amplitude: z.number().min(0),
-  seed: z.number().int().min(0),
+export const SurfaceConfigSchema = z.object({
+  type: SurfaceTypeSchema,
+  max_depth: z.number().min(0.5).max(12),
+  min_depth: z.number().min(0),
+  amplitude: z.number().min(0).max(1),
+  frequency: z.number().min(0.5).max(10),
+  phase: z.number().min(0).max(6.284),
+  flow_direction: FlowDirectionSchema,
   symmetry: SymmetrySchema,
+  smoothness: z.number().min(0).max(1),
+  seed: z.number().int(),
+  noise_amount: z.number().min(0).max(1),
+});
+
+export const SlatConfigSchema = z.object({
+  count: z.number().int().min(5).max(200),
+  spacing: z.number().min(0.25),
+  thickness: z.number().min(0.125),
+  base_height: z.number().min(0.5),
+  tab_width: z.number().min(0.01),
+  tab_depth: z.number().min(0.25),
+  tab_count: z.number().int().min(2).max(6),
+  tab_clearance: z.number().min(0),
+});
+
+export const BackingConfigSchema = z.object({
+  enabled: z.boolean(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  slot_width: z.number().positive(),
+  slot_depth: z.number().positive(),
+  mounting_holes: z.boolean(),
 });
 
 export const ConfigMaterialSchema = z.object({
@@ -147,17 +171,32 @@ export const ConfigReservedAcousticSchema = z.object({
   attachments: z.array(z.never()),
 });
 
+// v2 canonical config schema — accepts both v2 (with surface/slats/backing) and
+// v1 (with pattern) since the geometry service auto-migrates v1 configs.
 export const CanonicalConfigSchema = z.object({
   schema_version: z.string().regex(/^\d+\.\d+\.\d+$/),
   project: ConfigProjectSchema,
   boundary: ConfigBoundarySchema,
-  pattern: ConfigPatternSchema,
+  // v2 fields
+  surface: SurfaceConfigSchema.optional(),
+  slats: SlatConfigSchema.optional(),
+  backing: BackingConfigSchema.optional(),
+  // v1 field (legacy — still accepted for migration)
+  pattern: z.object({
+    family: z.enum(["wave_field", "contour_bands", "slat_rib"]),
+    density: z.number().min(0).max(1),
+    spacing: z.number().positive(),
+    line_width: z.number().positive(),
+    amplitude: z.number().min(0),
+    seed: z.number().int().min(0),
+    symmetry: SymmetrySchema,
+  }).optional(),
   fabrication: ConfigFabricationSchema,
   layout: ConfigLayoutSchema,
   labeling: ConfigLabelingSchema,
   export: ConfigExportSchema,
   reserved_acoustic: ConfigReservedAcousticSchema,
-});
+}).passthrough(); // allow both v1 and v2 configs through to the geometry service
 
 export const CreateProjectBodySchema = z.object({
   name: z.string().min(1).max(200),

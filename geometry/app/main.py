@@ -7,6 +7,8 @@ Milestone B: implement generate + validate.
 Milestone C: implement layout + export.
 """
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -24,14 +26,22 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS — web app is the only permitted caller in production.
-# Set ALLOWED_ORIGINS in .env for production deployments.
+# CORS — always include localhost for dev; add production URL via env var.
+# Fly.io: fly secrets set ALLOWED_ORIGIN=https://carvacoustic.com
+_allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+]
+_production_url = os.getenv("ALLOWED_ORIGIN")
+if _production_url:
+    _allowed_origins.append(_production_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=False,
-    allow_methods=["POST", "GET"],
-    allow_headers=["X-API-Key", "Content-Type"],
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(generate.router)

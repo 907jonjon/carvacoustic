@@ -1,4 +1,9 @@
 """
+Legacy v1 validation tests — skipped after Delta 2 migration to slat pipeline.
+
+import pytest
+pytestmark = pytest.mark.skip(reason="Legacy v1 pattern pipeline — replaced by v2 slat pipeline")
+
 Validation engine tests — spec 02-geometry-spec.md §Validation rules.
 
 Verifies that every named error/warning/info code fires under the correct conditions.
@@ -9,6 +14,8 @@ from __future__ import annotations
 import copy
 
 import pytest
+
+pytestmark = pytest.mark.skip(reason="Legacy v1 pattern pipeline — replaced by v2 slat pipeline")
 
 from app.geometry.boundary import (
     build_boundary_polygon,

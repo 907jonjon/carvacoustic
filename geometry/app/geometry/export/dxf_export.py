@@ -26,9 +26,10 @@ if TYPE_CHECKING:
 # ── Layer definitions ─────────────────────────────────────────────────────────
 # DXF colour index: 1=red 2=yellow 3=green 5=blue 7=white/black 8=grey
 _LAYERS: dict[str, dict] = {
-    "CUT_OUTER":          {"color": 1, "linetype": "CONTINUOUS"},  # red
-    "CUT_INNER":          {"color": 5, "linetype": "CONTINUOUS"},  # blue
-    "ENGRAVE_LABEL":      {"color": 3, "linetype": "CONTINUOUS"},  # green
+    "CUT_OUTER":          {"color": 1, "linetype": "CONTINUOUS"},  # red — panel/slat outlines
+    "CUT_INNER":          {"color": 5, "linetype": "CONTINUOUS"},  # blue — internal cuts
+    "CUT_SLOT":           {"color": 3, "linetype": "CONTINUOUS"},  # green — backing board slots
+    "ENGRAVE_LABEL":      {"color": 3, "linetype": "CONTINUOUS"},  # green — labels
     "REFERENCE_BOUNDARY": {"color": 7, "linetype": "CONTINUOUS"},  # white/black
     "SAFE_MARGIN_GUIDE":  {"color": 8, "linetype": "DASHED"},      # grey
 }

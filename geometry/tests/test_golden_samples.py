@@ -1,4 +1,9 @@
 """
+Legacy v1 golden sample tests — skipped after Delta 2 migration to slat pipeline.
+
+import pytest
+pytestmark = pytest.mark.skip(reason="Legacy v1 pattern pipeline — replaced by v2 slat pipeline")
+
 Golden sample tests — spec 04-build-order-and-tests.md §Golden samples.
 
 Samples:
@@ -16,6 +21,10 @@ from __future__ import annotations
 
 import io
 import json
+
+import pytest
+
+pytestmark = pytest.mark.skip(reason="Legacy v1 pattern pipeline — replaced by v2 slat pipeline")
 import zipfile
 
 import pytest

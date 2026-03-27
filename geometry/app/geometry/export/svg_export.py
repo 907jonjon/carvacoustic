@@ -1,7 +1,8 @@
 """
-SVG export — two purposes:
-  1. generate_preview_svg()  — inline SVG string for the browser preview panel
-  2. generate_file_svg()     — standalone SVG file suitable for DXF comparison / Vectric import
+SVG export — three purposes:
+  1. generate_preview_svg()       — inline SVG for the browser (legacy v1)
+  2. generate_slat_preview_svg()  — inline SVG showing slat profiles (v2)
+  3. generate_file_svg()          — standalone SVG for DXF comparison / Vectric import
 
 Coordinate note: Shapely uses math coordinates (Y up). SVG uses screen coordinates
 (Y down).  We apply a vertical flip transform so the preview matches the DXF.
@@ -10,7 +11,12 @@ Coordinate note: Shapely uses math coordinates (Y up). SVG uses screen coordinat
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
+
 from shapely.geometry import MultiPolygon, Polygon
+
+if TYPE_CHECKING:
+    from ...models import CanonicalConfig
 
 # SVG colours per layer role
 _COLOUR_BOUNDARY = "#d0d0d0"
@@ -236,6 +242,117 @@ def generate_file_svg(
                 f'{_escape_xml(lbl["text"])}</text>'
             )
         lines.append("</g>")
+
+    lines.append("</g>")
+    lines.append("</svg>")
+    return "\n".join(lines)
+
+
+def generate_slat_preview_svg(
+    slat_parts: list[dict],
+    backing_part: dict | None,
+    config: "CanonicalConfig",
+) -> str:
+    """
+    Inline SVG showing all slat profiles arranged side by side for the browser
+    preview panel (v2 pipeline).
+
+    Layout: slats are shown in a row (stacked top-to-bottom in SVG space) with a
+    small gap between them, so the viewer can see each unique profile.
+    The backing board is shown below all slats if present.
+    """
+    if not slat_parts:
+        return "<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%'></svg>"
+
+    # Collect all polygons to compute overall bounds
+    all_polys = [p["polygon"] for p in slat_parts]
+    if backing_part:
+        all_polys.append(backing_part["polygon"])
+
+    # Arrange slats vertically for the preview with a gap between each
+    # Get single slat bounds
+    sample = slat_parts[0]["polygon"]
+    sb_minx, sb_miny, sb_maxx, sb_maxy = sample.bounds
+    slat_w = sb_maxx - sb_minx
+    slat_h = sb_maxy - sb_miny
+    gap = slat_h * 0.2
+
+    # We show at most 20 slats in the preview to keep SVG fast
+    preview_slats = slat_parts[:20]
+    n_preview = len(preview_slats)
+
+    total_h = n_preview * (slat_h + gap) - gap
+    total_w = slat_w
+
+    if backing_part:
+        bb = backing_part["polygon"].bounds
+        back_h = bb[3] - bb[1]
+        total_h += gap * 2 + back_h
+
+    pad = max(total_w, total_h) * 0.03
+    vb_x = -pad
+    vb_y = -(total_h + pad)
+    vb_w = total_w + pad * 2
+    vb_h = total_h + pad * 2
+
+    lines: list[str] = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="{vb_x:.4f} {vb_y:.4f} {vb_w:.4f} {vb_h:.4f}" '
+        f'width="100%" height="100%">',
+        f'<rect x="{vb_x:.4f}" y="{vb_y:.4f}" width="{vb_w:.4f}" height="{vb_h:.4f}" fill="#f8f8f8"/>',
+        # Y-flip group
+        f'<g transform="translate(0,0) scale(1,-1)">',
+    ]
+
+    # Draw slats stacked downward (in math coords, each slat is shifted down)
+    for idx, part in enumerate(preview_slats):
+        y_offset = -(idx * (slat_h + gap))
+        poly = part["polygon"]
+
+        # Translate polygon to stacked position
+        from shapely import affinity
+        shifted = affinity.translate(poly, xoff=0, yoff=y_offset)
+        pd = _geom_to_path_data(shifted)
+        if pd:
+            lines.append(
+                f'<path d="{pd}" fill="#8B6914" fill-opacity="0.85" '
+                f'stroke="#5a3e0a" stroke-width="{slat_w * 0.004:.4f}" fill-rule="evenodd"/>'
+            )
+
+        # Label
+        if config.labeling.enabled:
+            lx = slat_w / 2.0
+            ly = y_offset + slat_h * 0.3
+            lh = slat_h * 0.12
+            lines.append(
+                f'<text x="{lx:.4f}" y="{ly:.4f}" '
+                f'transform="scale(1,-1) translate(0,{-2*ly:.4f})" '
+                f'font-size="{lh:.4f}" fill="#fff" '
+                f'font-family="monospace" text-anchor="middle">'
+                f'{_escape_xml(part["part_id"])}</text>'
+            )
+
+    # Draw backing board
+    if backing_part:
+        base_y = -(n_preview * (slat_h + gap) + gap)
+        bb_poly = backing_part["polygon"]
+        bb_minx2, bb_miny2, bb_maxx2, bb_maxy2 = bb_poly.bounds
+        from shapely import affinity
+        shifted_back = affinity.translate(bb_poly, xoff=0, yoff=base_y - bb_miny2)
+        pd = _geom_to_path_data(shifted_back)
+        if pd:
+            lines.append(
+                f'<path d="{pd}" fill="#A0522D" fill-opacity="0.8" '
+                f'stroke="#5a2e0a" stroke-width="{slat_w * 0.003:.4f}" fill-rule="evenodd"/>'
+            )
+
+    if n_preview < len(slat_parts):
+        lines.append(
+            f'<text x="{slat_w/2:.4f}" y="-{total_h + pad*0.5:.4f}" '
+            f'transform="scale(1,-1) translate(0,{2*(total_h + pad*0.5):.4f})" '
+            f'font-size="{slat_h * 0.15:.4f}" fill="#888" font-family="sans-serif" text-anchor="middle">'
+            f'…and {len(slat_parts) - n_preview} more slats</text>'
+        )
 
     lines.append("</g>")
     lines.append("</svg>")

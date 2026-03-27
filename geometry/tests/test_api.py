@@ -138,9 +138,27 @@ async def test_validate_returns_valid(wave_cfg_dict):
 
 @pytest.mark.asyncio
 async def test_validate_detects_feature_below_minimum(wave_cfg_dict):
+    """v2: tab_width smaller than tool_diameter triggers feature_below_minimum."""
     import copy
     cfg = copy.deepcopy(wave_cfg_dict)
-    cfg["pattern"]["line_width"] = 0.1  # < tool_diameter=0.25
+    # Force to v2 with a tab_width smaller than the tool diameter
+    cfg["schema_version"] = "2.0.0"
+    cfg["surface"] = {
+        "type": "wave", "max_depth": 3.0, "min_depth": 0.0,
+        "amplitude": 0.7, "frequency": 3.0, "phase": 0.0,
+        "flow_direction": "x", "symmetry": "none", "smoothness": 0.5,
+        "seed": 42, "noise_amount": 0.2,
+    }
+    cfg["slats"] = {
+        "count": 10, "spacing": 0.75, "thickness": 0.75,
+        "base_height": 1.5,
+        "tab_width": 0.1,  # < tool_diameter=0.25 → feature_below_minimum
+        "tab_depth": 0.75, "tab_count": 3, "tab_clearance": 0.01,
+    }
+    cfg["backing"] = {
+        "enabled": True, "width": 24.0, "height": 3.0,
+        "slot_width": 0.76, "slot_depth": 0.75, "mounting_holes": True,
+    }
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:

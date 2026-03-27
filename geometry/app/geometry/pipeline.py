@@ -1,18 +1,13 @@
 """
-Geometry pipeline — orchestrates all Milestone B steps.
+Geometry pipeline (v2) — height-field → slat-profile flow.
 
-Steps (spec 02-geometry-spec.md):
-  1.  Normalize boundary
-  2.  Apply safe margin
-  3.  Generate raw pattern guides
-  4.  Clip guides to boundary        ← done inside pattern generators
-  5.  Convert guides to cut geometry ← done inside pattern generators
-  6.  Merge and clean geometry
-  7.  Place labels
-  8.  Generate parts list
-  9.  Run validation
-  10. Layout to sheets               ← Milestone C
-  11. Assemble export-ready artifacts ← called separately via /export
+Steps:
+  1. Generate height field from surface config
+  2. Generate slat profiles (2D cut polygons)
+  3. Generate backing board (if enabled)
+  4. Place labels
+  5. Run validation
+  6. Build SVG preview (2D layout of all slat profiles)
 """
 
 from __future__ import annotations
@@ -20,7 +15,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from shapely.geometry import Polygon
-from shapely.ops import unary_union
 
 from ..models import (
     CanonicalConfig,
@@ -28,96 +22,71 @@ from ..models import (
     ValidationIssue,
     ValidationReport,
 )
-from .boundary import build_boundary_polygon, compute_safe_boundary, normalize_boundary
-from .patterns.wave_field import generate_wave_field
-from .patterns.contour_bands import generate_contour_bands
-from .patterns.slat_rib import generate_slat_rib
-from .validation import validate_config, validate_geometry
-from .export.svg_export import generate_preview_svg
+from .height_field import generate_height_field
+from .slat_profiler import generate_backing_board, generate_slat_profiles
+from .validation import validate_config, validate_geometry_v2
+from .export.svg_export import generate_slat_preview_svg
 
 
 def run_pipeline(config: CanonicalConfig) -> GenerateResult:
     """
-    Run the full Milestone-B geometry pipeline.
-    Returns a GenerateResult with SVG preview and validation report.
+    Run the full v2 geometry pipeline.
+    Returns a GenerateResult with 2D SVG preview and validation report.
     """
     issues: list[ValidationIssue] = []
 
-    # ── Step 1: Build & normalize boundary ───────────────────────────────────
-    try:
-        raw_poly = build_boundary_polygon(config.boundary)
-    except ValueError as exc:
-        return _error_result(str(exc), [
-            ValidationIssue(
-                level="error",
-                code="invalid_boundary",
-                message=str(exc),
-            )
-        ])
-
-    boundary_poly, boundary_issues = normalize_boundary(raw_poly)
-    issues.extend(boundary_issues)
-
-    if _has_errors(issues):
-        return _error_result("Boundary normalization failed.", issues)
-
-    # ── Step 2: Apply safe margin ─────────────────────────────────────────────
-    safe_poly = compute_safe_boundary(boundary_poly, config.boundary.safe_margin)
-
-    # ── Step 3 & 9a: Config-level validation ──────────────────────────────────
+    # ── Step 1: Config-level validation ──────────────────────────────────────
     config_issues = validate_config(config)
     issues.extend(config_issues)
 
     if _has_errors(config_issues):
-        # Still return an SVG showing just the boundary
-        svg = generate_preview_svg(boundary_poly, safe_poly, [], [])
-        return GenerateResult(
-            status="error",
-            message="Config validation failed. Fix errors before generating.",
-            validation=ValidationReport(valid=False, issues=issues),
-            svg_preview=svg,
-            part_count=0,
-            generated_at=_now(),
-        )
-
-    # ── Steps 3–5: Generate pattern ───────────────────────────────────────────
-    family = config.pattern.family.value
-
-    if family == "wave_field":
-        bands = generate_wave_field(safe_poly, config.pattern, config.fabrication)
-    elif family == "contour_bands":
-        bands = generate_contour_bands(safe_poly, config.pattern, config.fabrication)
-    elif family == "slat_rib":
-        bands = generate_slat_rib(safe_poly, config.pattern, config.fabrication)
-    else:
         return _error_result(
-            f"Pattern family '{family}' is not supported.",
-            issues + [
-                ValidationIssue(
-                    level="error",
-                    code="not_implemented",
-                    message=f"Pattern family '{family}' is not supported.",
-                )
-            ],
+            "Config validation failed. Fix errors before generating.",
+            issues,
         )
 
-    # ── Step 6: Merge and clean (dissolve overlapping bands) ─────────────────
-    if bands:
-        merged = unary_union(bands)
-        bands = _collect_polygons(merged)
+    # ── Step 2: Generate height field ─────────────────────────────────────────
+    x_vals, heights = generate_height_field(
+        surface=config.surface,
+        width=config.boundary.width,
+        slat_count=config.slats.count,
+    )
 
-    # ── Step 7: Place labels ──────────────────────────────────────────────────
-    labels = _place_labels(boundary_poly, config)
+    # ── Step 3: Generate slat profiles ────────────────────────────────────────
+    slat_parts = generate_slat_profiles(
+        x_vals=x_vals,
+        heights=heights,
+        slat_config=config.slats,
+        fab_config=config.fabrication,
+    )
 
-    # ── Step 8: Parts list ────────────────────────────────────────────────────
-    part_count = len(bands)
+    # ── Step 4: Generate backing board ────────────────────────────────────────
+    backing_part = generate_backing_board(
+        backing_config=config.backing,
+        slat_config=config.slats,
+        n_slats=config.slats.count,
+    )
 
-    # ── Step 9b: Geometry-level validation ────────────────────────────────────
-    geom_issues = validate_geometry(bands, boundary_poly, safe_poly, config)
+    all_parts = list(slat_parts)
+    if backing_part:
+        all_parts.append(backing_part)
+
+    # ── Step 5: Place labels ──────────────────────────────────────────────────
+    if config.labeling.enabled:
+        for part in all_parts:
+            centroid = part["polygon"].centroid
+            part["label"] = {
+                "text": part["part_id"],
+                "x": float(centroid.x),
+                "y": float(centroid.y),
+            }
+
+    # ── Step 6: Geometry validation ───────────────────────────────────────────
+    geom_issues = validate_geometry_v2(all_parts, config)
     issues.extend(geom_issues)
 
-    # ── Build SVG preview ─────────────────────────────────────────────────────
-    svg_preview = generate_preview_svg(boundary_poly, safe_poly, bands, labels)
+    # ── Step 7: SVG preview ───────────────────────────────────────────────────
+    svg_preview = generate_slat_preview_svg(slat_parts, backing_part, config)
 
     valid = not _has_errors(issues)
     status = "ok" if valid else "error"
@@ -127,9 +96,62 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
         message="" if valid else "Generation completed with errors. See validation report.",
         validation=ValidationReport(valid=valid, issues=issues),
         svg_preview=svg_preview,
-        part_count=part_count,
+        part_count=len(all_parts),
+        slat_count=len(slat_parts),
+        has_backing=backing_part is not None,
         generated_at=_now(),
     )
+
+
+def run_pipeline_internal(config: CanonicalConfig) -> dict:
+    """
+    Run geometry pipeline and return raw parts (including Shapely polygons).
+    Used by export router and bundle assembler.
+
+    Returns dict with:
+      parts       — list of part dicts (polygon, part_id, etc.)
+      slat_parts  — slat parts only
+      backing     — backing board dict or None
+      x_vals      — 1D array
+      heights     — 2D array
+      issues      — list[ValidationIssue]
+    """
+    config_issues = validate_config(config)
+    if _has_errors(config_issues):
+        return {"parts": [], "slat_parts": [], "backing": None,
+                "issues": config_issues, "x_vals": None, "heights": None}
+
+    x_vals, heights = generate_height_field(
+        surface=config.surface,
+        width=config.boundary.width,
+        slat_count=config.slats.count,
+    )
+    slat_parts = generate_slat_profiles(x_vals, heights, config.slats, config.fabrication)
+    backing_part = generate_backing_board(config.backing, config.slats, config.slats.count)
+
+    all_parts = list(slat_parts)
+    if backing_part:
+        all_parts.append(backing_part)
+
+    if config.labeling.enabled:
+        for part in all_parts:
+            centroid = part["polygon"].centroid
+            part["label"] = {
+                "text": part["part_id"],
+                "x": float(centroid.x),
+                "y": float(centroid.y),
+            }
+
+    geom_issues = validate_geometry_v2(all_parts, config)
+
+    return {
+        "parts": all_parts,
+        "slat_parts": slat_parts,
+        "backing": backing_part,
+        "x_vals": x_vals,
+        "heights": heights,
+        "issues": config_issues + geom_issues,
+    }
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -153,36 +175,13 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# ── Kept for import compatibility with old tests (will be skipped) ────────────
+
 def _place_labels(boundary_poly: Polygon, config: CanonicalConfig) -> list[dict]:
-    """
-    Place a single label per the labeling config.
-    Position: footer = bottom centre, header = top centre, center = centroid.
-    Labels are on ENGRAVE_LABEL layer — separate from cut geometry.
-    """
-    if not config.labeling.enabled:
-        return []
-
-    minx, miny, maxx, maxy = boundary_poly.bounds
-    cx = (minx + maxx) / 2.0
-    w = maxx - minx
-    h = maxy - miny
-    label_height = min(w, h) * 0.025
-
-    pos = config.labeling.position.value
-    if pos == "footer":
-        lx, ly = cx, miny + label_height
-    elif pos == "header":
-        lx, ly = cx, maxy - label_height
-    else:  # center
-        lx, ly = boundary_poly.centroid.x, boundary_poly.centroid.y
-
-    text = f"{config.labeling.prefix}1"
-
-    return [{"text": text, "x": lx, "y": ly, "height": label_height}]
+    return []
 
 
 def _collect_polygons(geom: object) -> list[Polygon]:
-    """Flatten any Shapely geometry into a list of Polygons."""
     result: list[Polygon] = []
     if isinstance(geom, Polygon):
         if not geom.is_empty and geom.area > 1e-12:

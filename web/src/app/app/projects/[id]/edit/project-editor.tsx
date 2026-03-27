@@ -3,10 +3,17 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Database } from "@/types/database";
-import type { CanonicalConfig, ProjectMode, PatternFamily } from "@/types/schema";
+import type {
+  CanonicalConfig,
+  ProjectMode,
+  SurfaceType,
+  FlowDirection,
+  Symmetry,
+} from "@/types/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Viewport } from "@/components/viewport/Viewport";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 
@@ -23,6 +30,8 @@ interface GenerateResult {
   validation?: { valid: boolean; issues: ValidationIssue[] };
   svg_preview?: string;
   part_count?: number;
+  slat_count?: number;
+  has_backing?: boolean;
   generated_at?: string;
 }
 
@@ -30,12 +39,6 @@ const MODE_LABELS: Record<ProjectMode, string> = {
   wall_art: "Wall Art",
   cabinet_front_panel: "Cabinet Front Panel",
   architectural_face_panel: "Architectural Face Panel",
-};
-
-const PATTERN_LABELS: Record<PatternFamily, string> = {
-  wave_field: "Wave Field",
-  contour_bands: "Contour Bands",
-  slat_rib: "Slat Rib",
 };
 
 export function ProjectEditor({
@@ -46,6 +49,11 @@ export function ProjectEditor({
   latestVersionNumber: number;
 }) {
   const [config, setConfig] = useState<CanonicalConfig>(project.draft_config);
+
+  // View state
+  const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
+  const [showExploded, setShowExploded] = useState(false);
+  const [showBacking, setShowBacking] = useState(true);
 
   // Save state
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -68,8 +76,12 @@ export function ProjectEditor({
     patch({ project: { ...config.project, ...p } });
   const patchBoundary = (p: Partial<CanonicalConfig["boundary"]>) =>
     patch({ boundary: { ...config.boundary, ...p } });
-  const patchPattern = (p: Partial<CanonicalConfig["pattern"]>) =>
-    patch({ pattern: { ...config.pattern, ...p } });
+  const patchSurface = (p: Partial<CanonicalConfig["surface"]>) =>
+    patch({ surface: { ...config.surface, ...p } });
+  const patchSlats = (p: Partial<CanonicalConfig["slats"]>) =>
+    patch({ slats: { ...config.slats, ...p } });
+  const patchBacking = (p: Partial<CanonicalConfig["backing"]>) =>
+    patch({ backing: { ...config.backing, ...p } });
   const patchMaterial = (p: Partial<CanonicalConfig["fabrication"]["material"]>) =>
     patch({ fabrication: { ...config.fabrication, material: { ...config.fabrication.material, ...p } } });
   const patchTool = (p: Partial<CanonicalConfig["fabrication"]["tool"]>) =>
@@ -116,7 +128,6 @@ export function ProjectEditor({
       if (!res.ok) {
         throw new Error(data?.error?.message ?? "Validate failed.");
       }
-      // Merge validation result into generateResult if present, or create stub
       setGenerateResult((prev) => ({
         ...(prev ?? { status: "ok", svg_preview: "", part_count: 0, generated_at: "" }),
         validation: data,
@@ -142,7 +153,6 @@ export function ProjectEditor({
         const err = await res.json();
         throw new Error(err?.error?.message ?? "Export failed.");
       }
-      // Trigger browser download
       const disposition = res.headers.get("Content-Disposition") ?? "";
       const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
       const filename = filenameMatch?.[1] ?? "carvacoustic-export.zip";
@@ -246,7 +256,9 @@ export function ProjectEditor({
             config={config}
             onProjectChange={patchProject}
             onBoundaryChange={patchBoundary}
-            onPatternChange={patchPattern}
+            onSurfaceChange={patchSurface}
+            onSlatsChange={patchSlats}
+            onBackingChange={patchBacking}
             onMaterialChange={patchMaterial}
             onToolChange={patchTool}
             onLayoutChange={patchLayout}
@@ -254,9 +266,77 @@ export function ProjectEditor({
           />
         </aside>
 
-        {/* ── CENTER: SVG preview ── */}
+        {/* ── CENTER: preview (3D or 2D) ── */}
         <main className="flex flex-1 flex-col bg-gray-50 overflow-hidden">
-          <PreviewPanel result={generateResult} />
+          {/* Toolbar */}
+          <div className="flex items-center gap-2 border-b border-gray-100 bg-white px-4 py-1.5">
+            <button
+              onClick={() => setViewMode("3d")}
+              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                viewMode === "3d"
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-500 hover:bg-gray-100"
+              }`}
+            >
+              3D View
+            </button>
+            <button
+              onClick={() => setViewMode("2d")}
+              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                viewMode === "2d"
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-500 hover:bg-gray-100"
+              }`}
+            >
+              2D Layout
+            </button>
+
+            {viewMode === "3d" && (
+              <>
+                <span className="ml-2 h-4 w-px bg-gray-200" />
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={showExploded}
+                    onChange={(e) => setShowExploded(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  Exploded
+                </label>
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={showBacking}
+                    onChange={(e) => setShowBacking(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  Backing
+                </label>
+              </>
+            )}
+
+            {viewMode === "2d" && generateResult?.part_count !== undefined && generateResult.part_count > 0 && (
+              <>
+                <span className="ml-auto text-xs text-gray-400">
+                  {generateResult.slat_count ?? generateResult.part_count} slat{(generateResult.slat_count ?? 0) !== 1 ? "s" : ""}
+                  {generateResult.has_backing && " + backing"}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-hidden">
+            {viewMode === "3d" ? (
+              <Viewport
+                config={config}
+                showExploded={showExploded}
+                showBacking={showBacking}
+              />
+            ) : (
+              <SvgPreview result={generateResult} />
+            )}
+          </div>
         </main>
 
         {/* ── RIGHT: validation + actions ── */}
@@ -283,13 +363,13 @@ export function ProjectEditor({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Center panel — SVG preview
+// Center panel — SVG preview (2D mode)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PreviewPanel({ result }: { result: GenerateResult | null }) {
+function SvgPreview({ result }: { result: GenerateResult | null }) {
   if (!result?.svg_preview) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center p-8">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center p-8 h-full">
         <div className="rounded-lg border-2 border-dashed border-gray-300 p-12">
           <svg
             className="mx-auto h-12 w-12 text-gray-300"
@@ -304,24 +384,18 @@ function PreviewPanel({ result }: { result: GenerateResult | null }) {
             <path d="M2 18 Q7 15 12 18 Q17 21 22 18" />
           </svg>
         </div>
-        <p className="text-sm text-gray-400">Click Generate to preview</p>
+        <p className="text-sm text-gray-400">Click Generate to see 2D layout</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      {result.part_count !== undefined && result.part_count > 0 && (
+    <div className="flex flex-1 flex-col h-full">
+      {result.validation && (
         <div className="flex items-center gap-3 border-b border-gray-100 bg-white px-4 py-2 text-xs text-gray-500">
-          <span>{result.part_count} cut feature{result.part_count !== 1 ? "s" : ""}</span>
-          {result.validation && (
-            <>
-              <span>&bull;</span>
-              <span className={result.validation.valid ? "text-green-600" : "text-red-600"}>
-                {result.validation.valid ? "Valid" : "Has errors"}
-              </span>
-            </>
-          )}
+          <span className={result.validation.valid ? "text-green-600" : "text-red-600"}>
+            {result.validation.valid ? "Valid" : "Has errors"}
+          </span>
         </div>
       )}
       <div
@@ -540,14 +614,40 @@ function Num({
   );
 }
 
+function CheckboxRow({ label, checked, onChange }: {
+  label: string; checked: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-gray-700">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+      />
+      {label}
+    </label>
+  );
+}
+
 function ConfigPanel({
-  config, onProjectChange, onBoundaryChange, onPatternChange,
-  onMaterialChange, onToolChange, onLayoutChange, onExportChange,
+  config,
+  onProjectChange,
+  onBoundaryChange,
+  onSurfaceChange,
+  onSlatsChange,
+  onBackingChange,
+  onMaterialChange,
+  onToolChange,
+  onLayoutChange,
+  onExportChange,
 }: {
   config: CanonicalConfig;
   onProjectChange: (p: Partial<CanonicalConfig["project"]>) => void;
   onBoundaryChange: (p: Partial<CanonicalConfig["boundary"]>) => void;
-  onPatternChange: (p: Partial<CanonicalConfig["pattern"]>) => void;
+  onSurfaceChange: (p: Partial<CanonicalConfig["surface"]>) => void;
+  onSlatsChange: (p: Partial<CanonicalConfig["slats"]>) => void;
+  onBackingChange: (p: Partial<CanonicalConfig["backing"]>) => void;
   onMaterialChange: (p: Partial<CanonicalConfig["fabrication"]["material"]>) => void;
   onToolChange: (p: Partial<CanonicalConfig["fabrication"]["tool"]>) => void;
   onLayoutChange: (p: Partial<CanonicalConfig["layout"]>) => void;
@@ -597,33 +697,96 @@ function ConfigPanel({
           hint="Keep-out distance from edge" />
       </FieldRow>
 
-      {/* Pattern */}
-      <SectionHeader title="Pattern" />
+      {/* Surface */}
+      <SectionHeader title="Surface" />
       <FieldRow>
-        <Select label="Family" value={config.pattern.family}
-          onChange={(e) => onPatternChange({ family: e.target.value as PatternFamily })}>
-          {(Object.entries(PATTERN_LABELS) as [PatternFamily, string][]).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
-          ))}
+        <Select label="Type" value={config.surface.type}
+          onChange={(e) => onSurfaceChange({ type: e.target.value as SurfaceType })}>
+          <option value="wave">Wave</option>
+          <option value="terrain">Terrain</option>
+          <option value="ripple">Ripple</option>
+          <option value="mountain">Mountain</option>
         </Select>
-        <Num label="Density" value={config.pattern.density}
-          onChange={(v) => onPatternChange({ density: v })} min={0} max={1} step={0.05} hint="0–1" />
-        <Num label={`Spacing (${u})`} value={config.pattern.spacing}
-          onChange={(v) => onPatternChange({ spacing: v })} min={0.01} />
-        <Num label={`Line width (${u})`} value={config.pattern.line_width}
-          onChange={(v) => onPatternChange({ line_width: v })} min={0.01} />
-        <Num label={`Amplitude (${u})`} value={config.pattern.amplitude}
-          onChange={(v) => onPatternChange({ amplitude: v })} min={0} />
-        <Input label="Seed" type="number" value={config.pattern.seed}
-          min={0} step={1} hint="Determinism seed"
-          onChange={(e) => { const v = parseInt(e.target.value, 10); if (!isNaN(v)) onPatternChange({ seed: v }); }} />
-        <Select label="Symmetry" value={config.pattern.symmetry}
-          onChange={(e) => onPatternChange({ symmetry: e.target.value as CanonicalConfig["pattern"]["symmetry"] })}>
+        <Num label={`Max depth (${u})`} value={config.surface.max_depth}
+          onChange={(v) => onSurfaceChange({ max_depth: v })} min={0.5} max={12} step={0.1}
+          hint="Tallest slat height" />
+        <Num label="Flow (amplitude)" value={config.surface.amplitude}
+          onChange={(v) => onSurfaceChange({ amplitude: v })} min={0} max={1} step={0.05}
+          hint="0–1, intensity of variation" />
+        <Num label="Complexity (frequency)" value={config.surface.frequency}
+          onChange={(v) => onSurfaceChange({ frequency: v })} min={0.5} max={10} step={0.1}
+          hint="0.5–10, undulations across width" />
+        <Num label="Phase (°)" value={Math.round(config.surface.phase * 180 / Math.PI)}
+          onChange={(v) => onSurfaceChange({ phase: (v * Math.PI) / 180 })}
+          min={0} max={360} step={5} hint="Shifts the wave pattern" />
+        <Select label="Direction" value={config.surface.flow_direction}
+          onChange={(e) => onSurfaceChange({ flow_direction: e.target.value as FlowDirection })}>
+          <option value="x">X (horizontal)</option>
+          <option value="y">Y (vertical)</option>
+          <option value="radial">Radial</option>
+        </Select>
+        <Select label="Symmetry" value={config.surface.symmetry}
+          onChange={(e) => onSurfaceChange({ symmetry: e.target.value as Symmetry })}>
           <option value="none">None</option>
-          <option value="x">X axis</option>
-          <option value="y">Y axis</option>
-          <option value="xy">XY (both)</option>
+          <option value="x">X mirror</option>
+          <option value="y">Y mirror</option>
+          <option value="xy">Both</option>
         </Select>
+        <Num label="Smoothness" value={config.surface.smoothness}
+          onChange={(v) => onSurfaceChange({ smoothness: v })} min={0} max={1} step={0.05}
+          hint="0–1, blur across height field" />
+        <Num label="Variation (noise)" value={config.surface.noise_amount}
+          onChange={(v) => onSurfaceChange({ noise_amount: v })} min={0} max={1} step={0.05}
+          hint="0–1, organic randomness" />
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <Input label="Seed" type="number" value={config.surface.seed} step={1}
+              hint="Determinism seed"
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                if (!isNaN(v)) onSurfaceChange({ seed: v });
+              }} />
+          </div>
+          <button
+            type="button"
+            onClick={() => onSurfaceChange({ seed: Math.floor(Math.random() * 100000) })}
+            className="mb-0 rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+            title="Randomize seed"
+          >
+            ↺
+          </button>
+        </div>
+      </FieldRow>
+
+      {/* Slats */}
+      <SectionHeader title="Slats" />
+      <FieldRow>
+        <Num label="Slat count" value={config.slats.count}
+          onChange={(v) => onSlatsChange({ count: Math.max(5, Math.min(200, Math.round(v))) })}
+          min={5} max={200} step={1} hint="5–200 slats" />
+        <Num label={`Spacing (${u})`} value={config.slats.spacing}
+          onChange={(v) => onSlatsChange({ spacing: v })} min={0.25}
+          hint="Center-to-center" />
+        <Num label={`Base height (${u})`} value={config.slats.base_height}
+          onChange={(v) => onSlatsChange({ base_height: v })} min={0.5}
+          hint="Rectangular base below profile" />
+        <Num label="Tab count" value={config.slats.tab_count}
+          onChange={(v) => onSlatsChange({ tab_count: Math.max(2, Math.min(6, Math.round(v))) })}
+          min={2} max={6} step={1} hint="Mounting tabs per slat" />
+        <Num label={`Tab width (${u})`} value={config.slats.tab_width}
+          onChange={(v) => onSlatsChange({ tab_width: v })} min={0.01}
+          hint="Width of each tab" />
+      </FieldRow>
+
+      {/* Backing */}
+      <SectionHeader title="Backing Board" />
+      <FieldRow>
+        <CheckboxRow label="Include backing board" checked={config.backing.enabled}
+          onChange={(v) => onBackingChange({ enabled: v })} />
+        {config.backing.enabled && (
+          <CheckboxRow label="Mounting holes" checked={config.backing.mounting_holes}
+            onChange={(v) => onBackingChange({ mounting_holes: v })} />
+        )}
       </FieldRow>
 
       {/* Material */}
@@ -667,12 +830,8 @@ function ConfigPanel({
       {/* Layout */}
       <SectionHeader title="Layout" />
       <FieldRow>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
-          <input type="checkbox" checked={config.layout.enabled}
-            onChange={(e) => onLayoutChange({ enabled: e.target.checked })}
-            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
-          Enable layout
-        </label>
+        <CheckboxRow label="Enable layout" checked={config.layout.enabled}
+          onChange={(v) => onLayoutChange({ enabled: v })} />
         <Num label="Copies" value={config.layout.copies}
           onChange={(v) => onLayoutChange({ copies: Math.max(1, Math.round(v)) })} min={1} step={1} />
         <Select label="Rotation mode" value={config.layout.rotation_mode}
@@ -681,12 +840,8 @@ function ConfigPanel({
           <option value="90_only">90° only</option>
           <option value="any">Any</option>
         </Select>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
-          <input type="checkbox" checked={config.layout.preserve_grain}
-            onChange={(e) => onLayoutChange({ preserve_grain: e.target.checked })}
-            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
-          Preserve grain direction
-        </label>
+        <CheckboxRow label="Preserve grain direction" checked={config.layout.preserve_grain}
+          onChange={(v) => onLayoutChange({ preserve_grain: v })} />
       </FieldRow>
 
       {/* Export */}

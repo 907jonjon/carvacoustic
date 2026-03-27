@@ -23,6 +23,9 @@ export function AppNav({ userEmail }: { userEmail: string | null }) {
         CarvAcoustic
       </Link>
       <div className="flex items-center gap-4">
+        <Link href="/docs" className="text-sm text-gray-500 hover:text-gray-700">
+          Docs
+        </Link>
         {userEmail && (
           <span className="text-xs text-gray-500 hidden sm:block">
             {userEmail}

@@ -1,8 +1,8 @@
 """
 POST /export — assemble and return the export ZIP bundle.
 
-Returns a binary ZIP response containing:
-  manifest.json, project-config.json, sheet-01.dxf, sheet-01.svg, README.txt
+Returns a binary ZIP response containing per-sheet DXF/SVG, reference PDF,
+manifest, project config, and README.
 
 The web app streams this directly to the browser as a file download.
 """
@@ -10,13 +10,15 @@ The web app streams this directly to the browser as a file download.
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from ..models import ExportRequest
 from ..auth import require_api_key
 from ..geometry.boundary import build_boundary_polygon, compute_safe_boundary, normalize_boundary
-from ..geometry.patterns.wave_field import generate_wave_field
-from ..geometry.validation import validate_config
-from ..geometry.pipeline import _place_labels, _collect_polygons
 from ..geometry.export.bundle import build_export_bundle
+from ..geometry.patterns.contour_bands import generate_contour_bands
+from ..geometry.patterns.slat_rib import generate_slat_rib
+from ..geometry.patterns.wave_field import generate_wave_field
+from ..geometry.pipeline import _collect_polygons, _place_labels
+from ..geometry.validation import validate_config
+from ..models import ExportRequest
 from shapely.ops import unary_union
 
 router = APIRouter(prefix="/export", tags=["export"])
@@ -25,7 +27,8 @@ router = APIRouter(prefix="/export", tags=["export"])
 @router.post("", dependencies=[Depends(require_api_key)])
 async def export(request: ExportRequest) -> Response:
     """
-    Run the geometry pipeline and return a ZIP export bundle.
+    Run the geometry pipeline for all three phase-1 pattern families and
+    return a ZIP export bundle.
     Raises 422 if config has blocking errors.
     """
     config = request.config
@@ -50,14 +53,18 @@ async def export(request: ExportRequest) -> Response:
         msgs = "; ".join(i.message for i in errors)
         raise HTTPException(status_code=422, detail=f"Config error: {msgs}")
 
-    # Pattern generation
+    # Pattern generation — all three approved phase-1 families
     family = config.pattern.family.value
     if family == "wave_field":
         bands = generate_wave_field(safe_poly, config.pattern, config.fabrication)
+    elif family == "contour_bands":
+        bands = generate_contour_bands(safe_poly, config.pattern, config.fabrication)
+    elif family == "slat_rib":
+        bands = generate_slat_rib(safe_poly, config.pattern, config.fabrication)
     else:
         raise HTTPException(
             status_code=422,
-            detail=f"Pattern family '{family}' not yet implemented (Milestone C).",
+            detail=f"Pattern family '{family}' is not supported.",
         )
 
     if bands:

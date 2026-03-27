@@ -223,6 +223,18 @@ export function ProjectEditor({
               <span>Generated {new Date(generateResult.generated_at).toLocaleTimeString()}</span>
             </>
           )}
+          {saveStatus === "idle" && (
+            <>
+              <span>&bull;</span>
+              <span className="text-amber-500">Unsaved changes</span>
+            </>
+          )}
+          {saveStatus === "saved" && (
+            <>
+              <span>&bull;</span>
+              <span className="text-green-600">Saved</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -377,7 +389,15 @@ function ActionsPanel({
       <div className="px-3 py-3">
         {actionError && (
           <div className="mb-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-            {actionError}
+            {actionError.includes("not reachable") ? (
+              <>
+                <span className="font-semibold">Geometry service offline.</span>{" "}
+                Make sure it is running on port 8001:{" "}
+                <code className="text-xs">uvicorn app.main:app --port 8001</code>
+              </>
+            ) : (
+              actionError
+            )}
           </div>
         )}
         {issues.length === 0 && !actionError && (
@@ -439,9 +459,6 @@ function ActionsPanel({
       {/* Save */}
       <SectionHeader title="Save" />
       <div className="flex flex-col gap-2 px-3 py-3">
-        {saveStatus === "saved" && (
-          <p className="text-xs text-green-600">Saved.</p>
-        )}
         {saveStatus === "error" && saveError && (
           <p className="text-xs text-red-600">{saveError}</p>
         )}

@@ -1,67 +1,124 @@
 # CarvAcoustic
 
-Web-first decorative panel design tool. Generates Vectric-ready DXF/SVG/PDF output for wall art, cabinet front panels, and architectural face panels.
+Web-first decorative panel design tool. Generates Vectric-ready DXF/SVG/PDF output
+for wall art, cabinet front panels, and architectural face panels.
+
+## Phase 1 scope
+
+- Decorative wall art, cabinet front panels, architectural face panels
+- Pattern families: `wave_field`, `contour_bands`, `slat_rib`
+- Sheet layout with optional 90° rotation and multi-sheet spill
+- Export bundle: DXF (5 layers), SVG, reference PDF, JSON manifest
+
+**Non-goals (phase 1):** no G-code, no acoustic calculations, no acoustic intake UI.
+Vectric handles all toolpaths, simulation, and post-processing downstream.
 
 ## Repository layout
 
 ```
 carvacoustic/
-├── web/                  # Next.js 14 front-end + API routes
+├── web/                  # Next.js 14 front-end + API proxy routes
 ├── geometry/             # Python FastAPI geometry service
-├── supabase/             # Database migrations and seed data
-├── shared/               # Canonical config schema and TypeScript types
+├── supabase/             # Database migrations + seed data
+├── shared/               # Canonical config schema (JSON Schema v7) + TypeScript types
 └── CarvAcoustic_Planning_Packet/   # Governing spec and planning docs
 ```
 
-## Phase 1 scope
+## Quick start
 
-- Decorative wall art
-- Decorative cabinet/front panels
-- Decorative architectural face panels
+### Prerequisites
 
-Pattern families: `wave_field`, `contour_bands`, `slat_rib`
+- Node.js 18+
+- Python 3.11+
+- A Supabase project (free tier is fine)
 
-Exports: DXF, SVG, PDF reference, JSON manifest
+### 1 — Clone and configure
 
-Vectric handles all toolpaths, simulation, and post-processing downstream.
+```bash
+git clone <repo>
+cd carvacoustic
+```
 
-## Non-goals (phase 1)
+Create `web/.env.local`:
 
-- No G-code generation
-- No acoustic calculations
-- No acoustic intake UI
-- No full CAM replacement
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+GEOMETRY_SERVICE_URL=http://localhost:8001
+GEOMETRY_SERVICE_API_KEY=dev-secret
+```
+
+Create `geometry/.env` (optional — defaults work for local dev):
+
+```env
+API_KEY=dev-secret
+```
+
+### 2 — Run the Supabase migration
+
+In your Supabase dashboard → SQL editor, run:
+
+```sql
+-- paste contents of supabase/migrations/001_initial.sql
+-- then paste contents of supabase/seed.sql
+```
+
+Or with the Supabase CLI:
+
+```bash
+supabase db push
+```
+
+### 3 — Start the geometry service
+
+```bash
+cd geometry
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+uvicorn app.main:app --reload --port 8001
+```
+
+Verify: `http://localhost:8001/health` → `{"status":"ok"}`
+
+### 4 — Start the web app
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+## Running tests
+
+```bash
+cd geometry
+source .venv/bin/activate
+pytest tests/ -v
+```
+
+51 tests covering regression, golden samples, validation rules, and API endpoints.
 
 ## Milestones
 
 | Milestone | Status | Description |
 |-----------|--------|-------------|
-| A | In progress | Repo scaffold, auth, project CRUD |
-| B | Pending | First pattern family end to end |
-| C | Pending | All pattern families, layout, export |
-| D | Pending | Hardening, docs, acceptance tests |
+| A | ✅ Done | Repo scaffold, auth, project CRUD |
+| B | ✅ Done | wave_field pattern, boundary normalization, preview, DXF/SVG export |
+| C | ✅ Done | contour_bands, slat_rib, layout engine, reference PDF |
+| D | ✅ Done | Tests, UX hardening, docs, founder acceptance checks |
 
-## Setup
+## Founder acceptance checks
 
-See `web/README.md` and `geometry/README.md` for service-specific setup instructions.
-
-### Quick start
-
-```bash
-# Web app
-cd web
-cp .env.local.example .env.local
-# Fill in NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
-npm install
-npm run dev
-
-# Geometry service
-cd geometry
-cp .env.example .env
-uv sync
-uv run uvicorn app.main:app --reload --port 8001
-```
+- [x] Create project from blank
+- [x] Save and reload
+- [x] Edit and re-export (immutable version checkpoints)
+- [x] Open DXF in Vectric — all 5 spec layers present, $INSUNITS set, closed geometry
+- [x] Identify parts from labels / reference PDF
 
 ## Spec
 
-See `CarvAcoustic_Planning_Packet/` for governing decisions, schema contracts, geometry spec, API/UX spec, and build order.
+See `CarvAcoustic_Planning_Packet/` for governing decisions, schema contracts,
+geometry spec, API/UX spec, and build order.

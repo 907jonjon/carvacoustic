@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://carvacoustic.com/schemas/config/1.0.0",
+  "title": "CarvAcoustic Canonical Config",
+  "description": "Source-of-truth config object for a CarvAcoustic project version.",
+  "type": "object",
+  "required": ["schema_version", "project", "boundary", "pattern", "fabrication", "layout", "labeling", "export", "reserved_acoustic"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver string for this schema. Current: 1.0.0"
+    },
+    "project": {
+      "type": "object",
+      "required": ["name", "mode", "units"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "mode": {
+          "type": "string",
+          "enum": ["wall_art", "cabinet_front_panel", "architectural_face_panel"],
+          "description": "Decorative panel mode. Acoustic modes are reserved for future phases."
+        },
+        "units": { "type": "string", "enum": ["in", "mm"] }
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "required": ["type", "width", "height", "corner_radius", "asset_id", "safe_margin"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["rectangle", "rounded_rectangle", "svg_import"]
+        },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "corner_radius": { "type": "number", "minimum": 0 },
+        "asset_id": { "type": ["string", "null"] },
+        "safe_margin": { "type": "number", "minimum": 0 }
+      }
+    },
+    "pattern": {
+      "type": "object",
+      "required": ["family", "density", "spacing", "line_width", "amplitude", "seed", "symmetry"],
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "type": "string",
+          "enum": ["wave_field", "contour_bands", "slat_rib"],
+          "description": "Approved phase-1 pattern families only."
+        },
+        "density": { "type": "number", "minimum": 0, "maximum": 1 },
+        "spacing": { "type": "number", "exclusiveMinimum": 0 },
+        "line_width": { "type": "number", "exclusiveMinimum": 0 },
+        "amplitude": { "type": "number", "minimum": 0 },
+        "seed": { "type": "integer", "minimum": 0 },
+        "symmetry": { "type": "string", "enum": ["none", "x", "y", "xy"] }
+      }
+    },
+    "fabrication": {
+      "type": "object",
+      "required": ["material", "tool"],
+      "additionalProperties": false,
+      "properties": {
+        "material": {
+          "type": "object",
+          "required": ["thickness", "sheet_width", "sheet_height", "min_bridge", "grain_direction"],
+          "additionalProperties": false,
+          "properties": {
+            "thickness": { "type": "number", "exclusiveMinimum": 0 },
+            "sheet_width": { "type": "number", "exclusiveMinimum": 0 },
+            "sheet_height": { "type": "number", "exclusiveMinimum": 0 },
+            "min_bridge": { "type": "number", "exclusiveMinimum": 0 },
+            "grain_direction": { "type": "string", "enum": ["x", "y"] }
+          }
+        },
+        "tool": {
+          "type": "object",
+          "required": ["tool_diameter", "kerf_allowance", "min_inside_radius", "dogbone_style", "clearance", "border_gap"],
+          "additionalProperties": false,
+          "properties": {
+            "tool_diameter": { "type": "number", "exclusiveMinimum": 0 },
+            "kerf_allowance": { "type": "number", "minimum": 0 },
+            "min_inside_radius": { "type": "number", "minimum": 0 },
+            "dogbone_style": { "type": "string", "enum": ["classic", "none"] },
+            "clearance": { "type": "number", "minimum": 0 },
+            "border_gap": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "required": ["enabled", "copies", "rotation_mode", "preserve_grain"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "copies": { "type": "integer", "minimum": 1 },
+        "rotation_mode": { "type": "string", "enum": ["90_only", "any", "none"] },
+        "preserve_grain": { "type": "boolean" }
+      }
+    },
+    "labeling": {
+      "type": "object",
+      "required": ["enabled", "prefix", "position"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "prefix": { "type": "string", "maxLength": 10 },
+        "position": { "type": "string", "enum": ["footer", "header", "center"] }
+      }
+    },
+    "export": {
+      "type": "object",
+      "required": ["formats", "units"],
+      "additionalProperties": false,
+      "properties": {
+        "formats": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["dxf", "svg", "pdf", "json"] },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "units": { "type": "string", "enum": ["in", "mm"] }
+      }
+    },
+    "reserved_acoustic": {
+      "type": "object",
+      "description": "Reserved for future acoustic phases. Must be present but remains inert in phase 1.",
+      "required": ["enabled", "room_use", "target_issue", "room_dimensions", "surface_summary", "installation_constraints", "attachments"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "const": false },
+        "room_use": { "type": "null" },
+        "target_issue": { "type": "null" },
+        "room_dimensions": { "type": "null" },
+        "surface_summary": { "type": "null" },
+        "installation_constraints": { "type": "null" },
+        "attachments": { "type": "array", "maxItems": 0 }
+      }
+    }
+  }
+}

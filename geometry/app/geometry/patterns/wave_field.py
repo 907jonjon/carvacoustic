@@ -1,5 +1,5 @@
 """
-wave_field pattern generator — Milestone B.
+wave_field pattern generator.
 
 Spec intent:
 - Build repeated guide lines across the usable boundary.
@@ -7,8 +7,19 @@ Spec intent:
 - Clip to boundary.
 - Convert to line/band geometry based on fabrication settings (line_width).
 
-Determinism rule: same config → same geometry. Achieved by seeding numpy's
-Generator with pattern.seed and deriving per-line phases from it.
+Visual goal: gentle rippling waves / flowing contours across the panel —
+organic and flowing, not interlocked or chaotic.
+
+Approach:
+- All guide lines share the same base phase (drawn once from the seeded RNG).
+  This makes every wave crest and trough align, producing the "flowing ripple"
+  look of water waves or wood grain.
+- An optional slow phase drift between adjacent lines (phase_drift) adds subtle
+  organic variation without breaking the overall flow direction.
+- density controls wave frequency (cycles per unit length across the panel).
+- amplitude controls wave height (lateral displacement of each guide line).
+
+Determinism rule: same config → same geometry.
 """
 
 from __future__ import annotations
@@ -18,13 +29,16 @@ import math
 import numpy as np
 from shapely import affinity
 from shapely.geometry import LineString, MultiPolygon, Polygon, box
-from shapely.ops import unary_union
 
 from ...models import ConfigFabrication, ConfigPattern
 
-# Sample points per spacing unit along each guide line.
-# Higher values → smoother curves; 20 is sufficient for typical spacing.
-_SAMPLE_DENSITY = 20
+# Number of sample points along each guide line.
+_N_PTS = 256
+
+# Slow phase drift between adjacent lines (radians per line).
+# Small enough to keep the overall wave flow coherent; large enough for
+# organic variation. Roughly 1 full extra cycle spread across the panel.
+_PHASE_DRIFT_PER_LINE = 0.18
 
 
 def generate_wave_field(
@@ -42,16 +56,21 @@ def generate_wave_field(
     w = maxx - minx
     h = maxy - miny
 
-    spacing = pattern.spacing
+    spacing = max(pattern.spacing, 1e-6)
     line_width = pattern.line_width
     amplitude = pattern.amplitude
     symm = pattern.symmetry.value
 
-    # Angular frequency: density=0 → straight lines, density=1 → one full cycle
-    # per spacing unit.
-    frequency = pattern.density * 2.0 * math.pi / max(spacing, 1e-9)
+    # Wave frequency: density controls how many cycles fit across the panel width.
+    # density=0 → straight lines; density=1 → ~1 full cycle across the panel.
+    frequency = pattern.density * 2.0 * math.pi / max(w, spacing)
 
-    # Determine y generation range based on symmetry
+    # Single base phase from seed — all lines share this foundation, giving a
+    # coherent flowing wave rather than random independent wiggles.
+    rng = np.random.default_rng(pattern.seed)
+    base_phase = rng.uniform(0.0, 2.0 * math.pi)
+
+    # Determine Y generation range (symmetry halving)
     if symm in ("y", "xy"):
         y_gen_start = miny
         y_gen_end = (miny + maxy) / 2.0
@@ -59,27 +78,24 @@ def generate_wave_field(
         y_gen_start = miny
         y_gen_end = maxy
 
-    # Number of guide lines (extend one extra on each side to cover boundary)
+    # Guide line count — extend one extra on each side to avoid edge artifacts
     n_lines = max(int(math.ceil((y_gen_end - y_gen_start) / spacing)) + 2, 1)
 
-    # All phases derived deterministically from seed
-    rng = np.random.default_rng(pattern.seed)
-    phases = rng.uniform(0.0, 2.0 * math.pi, n_lines)
-
-    # X sample points — extend past boundary to avoid edge artifacts after clip
-    n_pts = max(int(w * _SAMPLE_DENSITY / max(spacing, 1e-9)), 128)
-    xs = np.linspace(minx - amplitude - line_width, maxx + amplitude + line_width, n_pts)
+    # X sample points — extend past boundary to cover full clip after wave displacement
+    xs = np.linspace(minx - amplitude - line_width, maxx + amplitude + line_width, _N_PTS)
 
     raw_bands: list[Polygon] = []
 
     for i in range(n_lines):
         y_center = y_gen_start + i * spacing
-        ys = y_center + amplitude * np.sin(frequency * (xs - minx) + phases[i])
+        # Slow drift accumulates across lines, keeping waves coherent but not identical
+        phase = base_phase + i * _PHASE_DRIFT_PER_LINE
+        ys = y_center + amplitude * np.sin(frequency * (xs - minx) + phase)
 
         guide = LineString(list(zip(xs.tolist(), ys.tolist())))
 
         if line_width < 1e-9:
-            continue  # degenerate — skip
+            continue
 
         band = guide.buffer(line_width / 2.0, cap_style=2, join_style=2)
         if isinstance(band, Polygon) and not band.is_empty:
@@ -90,7 +106,6 @@ def generate_wave_field(
     cy = (miny + maxy) / 2.0
 
     if symm in ("y", "xy"):
-        # Mirror generated (bottom) bands about the horizontal center line
         mirrored = [
             affinity.scale(b, xfact=1.0, yfact=-1.0, origin=(cx, cy))
             for b in raw_bands
@@ -98,7 +113,6 @@ def generate_wave_field(
         raw_bands = raw_bands + mirrored
 
     if symm in ("x", "xy"):
-        # Clip all bands to right half, then mirror to left half
         right_box = box(
             cx,
             miny - amplitude - line_width,
@@ -133,6 +147,5 @@ def _collect_polygons(geom: object, out: list[Polygon]) -> None:
         for g in geom.geoms:
             _collect_polygons(g, out)
     elif hasattr(geom, "geoms"):
-        # GeometryCollection
-        for g in geom.geoms:
+        for g in geom.geoms:  # type: ignore[union-attr]
             _collect_polygons(g, out)

@@ -20,7 +20,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
     numpy \
     ezdxf \
     reportlab \
-    scipy
+    scipy \
+    pydantic-settings
 
 # Copy application code
 COPY app/ ./app/

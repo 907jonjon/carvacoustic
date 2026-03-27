@@ -1,11 +1,12 @@
 """
-Generate router — stub for Milestone B.
-POST /generate will invoke the geometry pipeline.
+POST /generate — full geometry pipeline for Milestone B.
+Returns SVG preview, validation report, and part count.
 """
 
 from fastapi import APIRouter, Depends
-from ..models import GenerateRequest, GenerateResult, ValidationReport
+from ..models import GenerateRequest, GenerateResult
 from ..auth import require_api_key
+from ..geometry.pipeline import run_pipeline
 
 router = APIRouter(prefix="/generate", tags=["generate"])
 
@@ -13,22 +14,8 @@ router = APIRouter(prefix="/generate", tags=["generate"])
 @router.post("", response_model=GenerateResult, dependencies=[Depends(require_api_key)])
 async def generate(request: GenerateRequest) -> GenerateResult:
     """
-    Geometry generation entry point.
-    Milestone B: boundary normalization → pattern generation → validation → parts list.
+    Run the geometry pipeline (steps 1–9 of spec 02-geometry-spec.md).
+    Returns SVG preview string and validation report.
+    Layout (step 10) and export bundle assembly (step 11) are separate endpoints.
     """
-    # Stub — implementation in Milestone B
-    return GenerateResult(
-        status="error",
-        message="Geometry generation not yet implemented (Milestone B).",
-        validation=ValidationReport(
-            valid=False,
-            issues=[
-                {
-                    "level": "info",
-                    "code": "not_implemented",
-                    "message": "Geometry generation will be implemented in Milestone B.",
-                    "field": None,
-                }
-            ],
-        ),
-    )
+    return run_pipeline(request.config)

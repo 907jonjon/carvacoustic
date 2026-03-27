@@ -210,10 +210,18 @@ class ValidationReport(BaseModel):
 
 
 class GenerateResult(BaseModel):
-    """Placeholder — populated in Milestone B."""
     status: Literal["ok", "error"]
     message: str = ""
-    validation: ValidationReport | None = None
+    validation: ValidationReport = Field(default_factory=lambda: ValidationReport(valid=True))
+    svg_preview: str = ""        # inline SVG markup for browser preview panel
+    part_count: int = 0
+    generated_at: str = ""
+
+
+class ExportResult(BaseModel):
+    status: Literal["ok", "error"]
+    message: str = ""
+    filename: str = ""           # suggested download filename
 
 
 class ExportManifest(BaseModel):

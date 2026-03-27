@@ -140,8 +140,8 @@ def generate_preview_svg(
 
 
 def generate_file_svg(
-    boundary_poly: Polygon,
-    safe_poly: Polygon,
+    boundary_poly: Polygon | list[Polygon],
+    safe_poly: Polygon | list[Polygon],
     bands: list[Polygon],
     labels: list[dict],
     units: str,
@@ -149,8 +149,17 @@ def generate_file_svg(
     """
     Return a standalone SVG file string with correct engineering orientation
     (Y-up, same as DXF). Includes unit metadata.
+    Accepts single Polygon or list of Polygons for boundary/safe_poly
+    to support multi-copy sheet layouts.
     """
-    minx, miny, maxx, maxy = boundary_poly.bounds
+    boundary_list = boundary_poly if isinstance(boundary_poly, list) else [boundary_poly]
+    safe_list = safe_poly if isinstance(safe_poly, list) else [safe_poly]
+
+    # Compute overall bounds across all boundaries
+    all_xs = [x for bp in boundary_list for x, _ in bp.exterior.coords]
+    all_ys = [y for bp in boundary_list for _, y in bp.exterior.coords]
+    minx, miny = min(all_xs), min(all_ys)
+    maxx, maxy = max(all_xs), max(all_ys)
     w = maxx - minx
     h = maxy - miny
     pad = max(w, h) * 0.02
@@ -170,38 +179,42 @@ def generate_file_svg(
         f'<g transform="translate(0,{(2*miny + h):.4f}) scale(1,-1)">',
     ]
 
-    # Layers as <g> groups matching DXF layer names
     # REFERENCE_BOUNDARY
-    bd = _geom_to_path_data(boundary_poly)
-    if bd:
-        lines.append(f'<g id="REFERENCE_BOUNDARY">')
-        lines.append(
-            f'<path d="{bd}" fill="none" stroke="#888888" '
-            f'stroke-width="{sw_boundary:.5f}"/>'
-        )
-        lines.append("</g>")
+    lines.append('<g id="REFERENCE_BOUNDARY">')
+    for bp in boundary_list:
+        bd = _geom_to_path_data(bp)
+        if bd:
+            lines.append(
+                f'<path d="{bd}" fill="none" stroke="#888888" '
+                f'stroke-width="{sw_boundary:.5f}"/>'
+            )
+    lines.append("</g>")
 
     # SAFE_MARGIN_GUIDE
-    sm = _geom_to_path_data(safe_poly)
-    if sm:
-        lines.append(f'<g id="SAFE_MARGIN_GUIDE">')
-        lines.append(
-            f'<path d="{sm}" fill="none" stroke="#aaaaff" '
-            f'stroke-width="{sw_safe:.5f}" '
-            f'stroke-dasharray="{dash:.4f} {dash*0.5:.4f}"/>'
-        )
-        lines.append("</g>")
+    lines.append('<g id="SAFE_MARGIN_GUIDE">')
+    for sp in safe_list:
+        sm = _geom_to_path_data(sp)
+        if sm:
+            lines.append(
+                f'<path d="{sm}" fill="none" stroke="#aaaaff" '
+                f'stroke-width="{sw_safe:.5f}" '
+                f'stroke-dasharray="{dash:.4f} {dash*0.5:.4f}"/>'
+            )
+    lines.append("</g>")
 
     # CUT_OUTER
-    lines.append(f'<g id="CUT_OUTER">')
-    lines.append(
-        f'<path d="{bd}" fill="none" stroke="#ff0000" '
-        f'stroke-width="{sw_boundary:.5f}"/>'
-    )
+    lines.append('<g id="CUT_OUTER">')
+    for bp in boundary_list:
+        bd = _geom_to_path_data(bp)
+        if bd:
+            lines.append(
+                f'<path d="{bd}" fill="none" stroke="#ff0000" '
+                f'stroke-width="{sw_boundary:.5f}"/>'
+            )
     lines.append("</g>")
 
     # CUT_INNER
-    lines.append(f'<g id="CUT_INNER">')
+    lines.append('<g id="CUT_INNER">')
     for band in bands:
         pd = _geom_to_path_data(band)
         if pd:

@@ -9,6 +9,8 @@ from ..auth import require_api_key
 from ..geometry.boundary import build_boundary_polygon, compute_safe_boundary, normalize_boundary
 from ..geometry.validation import validate_config, validate_geometry
 from ..geometry.patterns.wave_field import generate_wave_field
+from ..geometry.patterns.contour_bands import generate_contour_bands
+from ..geometry.patterns.slat_rib import generate_slat_rib
 
 router = APIRouter(prefix="/validate", tags=["validate"])
 
@@ -50,14 +52,20 @@ async def validate(request: ValidateRequest) -> ValidationReport:
 
     if family == "wave_field":
         bands = generate_wave_field(safe_poly, config.pattern, config.fabrication)
-        geom_issues = validate_geometry(bands, raw_poly, safe_poly, config)
-        issues.extend(geom_issues)
+    elif family == "contour_bands":
+        bands = generate_contour_bands(safe_poly, config.pattern, config.fabrication)
+    elif family == "slat_rib":
+        bands = generate_slat_rib(safe_poly, config.pattern, config.fabrication)
     else:
         issues.append(ValidationIssue(
-            level="info",
-            code="pattern_not_implemented",
-            message=f"Geometry-level validation for '{family}' not yet implemented (Milestone C).",
+            level="error",
+            code="not_implemented",
+            message=f"Pattern family '{family}' is not supported.",
         ))
+        return ValidationReport(valid=False, issues=issues)
+
+    geom_issues = validate_geometry(bands, raw_poly, safe_poly, config)
+    issues.extend(geom_issues)
 
     valid = not any(i.level == "error" for i in issues)
     return ValidationReport(valid=valid, issues=issues)

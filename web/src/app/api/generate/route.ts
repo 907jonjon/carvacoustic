@@ -37,7 +37,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
         "X-API-Key": geoKey,
       },
-      body: JSON.stringify({ config: parsed.data }),
+      body: JSON.stringify(parsed.data),
     });
   } catch (err) {
     return apiError(

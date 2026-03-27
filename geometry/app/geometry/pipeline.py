@@ -30,6 +30,8 @@ from ..models import (
 )
 from .boundary import build_boundary_polygon, compute_safe_boundary, normalize_boundary
 from .patterns.wave_field import generate_wave_field
+from .patterns.contour_bands import generate_contour_bands
+from .patterns.slat_rib import generate_slat_rib
 from .validation import validate_config, validate_geometry
 from .export.svg_export import generate_preview_svg
 
@@ -83,14 +85,18 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
 
     if family == "wave_field":
         bands = generate_wave_field(safe_poly, config.pattern, config.fabrication)
+    elif family == "contour_bands":
+        bands = generate_contour_bands(safe_poly, config.pattern, config.fabrication)
+    elif family == "slat_rib":
+        bands = generate_slat_rib(safe_poly, config.pattern, config.fabrication)
     else:
         return _error_result(
-            f"Pattern family '{family}' is not yet implemented (Milestone C).",
+            f"Pattern family '{family}' is not supported.",
             issues + [
                 ValidationIssue(
                     level="error",
                     code="not_implemented",
-                    message=f"Pattern family '{family}' not yet implemented.",
+                    message=f"Pattern family '{family}' is not supported.",
                 )
             ],
         )

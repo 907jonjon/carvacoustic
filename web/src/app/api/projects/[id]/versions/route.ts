@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { CreateVersionBodySchema } from "@/types/schema";
-import type { ApiError } from "@/types/schema";
+import type { ApiError, CanonicalConfig } from "@/types/schema";
 
 function apiError(code: string, message: string, status = 400): NextResponse<ApiError> {
   return NextResponse.json({ error: { code, message } }, { status });
@@ -56,7 +56,7 @@ export async function POST(
     .insert({
       project_id: id,
       version_number: nextVersion,
-      config: parsed.data.config,
+      config: parsed.data.config as unknown as CanonicalConfig,
       notes: parsed.data.notes ?? null,
     })
     .select()
@@ -71,7 +71,7 @@ export async function POST(
     .from("projects")
     .update({
       latest_version_id: version.id,
-      draft_config: parsed.data.config,
+      draft_config: parsed.data.config as unknown as CanonicalConfig,  // Zod output is structurally compatible; surface is optional for v1 compat
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

@@ -4,8 +4,12 @@ Shared test fixtures — canonical configs for both golden samples.
 
 from __future__ import annotations
 
-import pytest
-from app.models import CanonicalConfig
+import os
+
+os.environ.setdefault("API_KEY", "dev-secret")
+
+import pytest  # noqa: E402
+from app.models import CanonicalConfig  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

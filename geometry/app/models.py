@@ -112,17 +112,17 @@ class ConfigProject(BaseModel):
 
 class ConfigBoundary(BaseModel):
     type: BoundaryType
-    width: float = Field(gt=0)
-    height: float = Field(gt=0)
-    corner_radius: float = Field(ge=0)
+    width: float = Field(gt=0, le=1000)
+    height: float = Field(gt=0, le=1000)
+    corner_radius: float = Field(ge=0, le=100)
     asset_id: str | None = None
-    safe_margin: float = Field(ge=0)
+    safe_margin: float = Field(ge=0, le=100)
 
 
 class ConfigMaterial(BaseModel):
-    thickness: float = Field(gt=0)
-    sheet_width: float = Field(gt=0)
-    sheet_height: float = Field(gt=0)
+    thickness: float = Field(gt=0, le=100)
+    sheet_width: float = Field(gt=0, le=1000)
+    sheet_height: float = Field(gt=0, le=1000)
     min_bridge: float = Field(gt=0)
     grain_direction: GrainDirection
 
@@ -191,7 +191,7 @@ class SurfaceConfig(BaseModel):
 
 class SlatConfig(BaseModel):
     count: int = Field(ge=5, le=200, default=30)
-    spacing: float = Field(ge=0.25, default=0.75)
+    spacing: float = Field(ge=0.25, le=100, default=0.75)
     thickness: float = Field(ge=0.125, default=0.75)
     base_height: float = Field(ge=0.5, default=1.5)
     tab_width: float = Field(ge=0.01, default=0.5)
@@ -202,8 +202,8 @@ class SlatConfig(BaseModel):
 
 class BackingConfig(BaseModel):
     enabled: bool = True
-    width: float = 48.0
-    height: float = 3.0
+    width: float = Field(default=48.0, le=1000)
+    height: float = Field(default=3.0, le=1000)
     slot_width: float = 0.76  # slat thickness + clearance
     slot_depth: float = 0.75
     mounting_holes: bool = True

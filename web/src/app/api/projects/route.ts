@@ -41,7 +41,8 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError || !project) {
-    return apiError("database_error", insertError?.message ?? "Insert failed.", 500);
+    console.error("Project insert failed:", insertError);
+    return apiError("database_error", "Database error.", 500);
   }
 
   return NextResponse.json(project, { status: 201 });
@@ -58,7 +59,7 @@ export async function GET() {
 
   const { data: projects, error } = await supabase
     .from("projects")
-    .select("*")
+    .select("id, name, mode, units, draft_config, latest_version_id, created_at, updated_at")
     .eq("owner_id", user.id)
     .order("updated_at", { ascending: false });
 

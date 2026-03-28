@@ -26,7 +26,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("material_presets")
-    .select("*")
+    .select("id, name, thickness, sheet_width, sheet_height, min_bridge, grain_direction, is_default, created_at")
     .or(`owner_id.eq.${user.id},is_default.eq.true`)
     .order("is_default", { ascending: false })
     .order("name");
@@ -59,7 +59,10 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error || !data) return apiError("database_error", error?.message ?? "Insert failed.", 500);
+  if (error || !data) {
+    console.error("Material preset insert failed:", error);
+    return apiError("database_error", "Database error.", 500);
+  }
 
   return NextResponse.json(data, { status: 201 });
 }

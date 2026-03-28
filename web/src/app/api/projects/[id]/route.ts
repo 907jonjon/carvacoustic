@@ -68,11 +68,13 @@ export async function PATCH(
     .from("projects")
     .update(updates)
     .eq("id", id)
+    .eq("owner_id", user.id)
     .select()
     .single();
 
   if (updateError || !updated) {
-    return apiError("database_error", updateError?.message ?? "Update failed.", 500);
+    console.error("Project update failed:", updateError);
+    return apiError("database_error", "Database error.", 500);
   }
 
   return NextResponse.json(updated);
@@ -95,10 +97,12 @@ export async function DELETE(
   const { error: deleteError } = await supabase
     .from("projects")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("owner_id", user.id);
 
   if (deleteError) {
-    return apiError("database_error", deleteError.message, 500);
+    console.error("Project delete failed:", deleteError);
+    return apiError("database_error", "Database error.", 500);
   }
 
   return new NextResponse(null, { status: 204 });

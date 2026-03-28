@@ -27,7 +27,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("tool_presets")
-    .select("*")
+    .select("id, name, tool_diameter, kerf_allowance, min_inside_radius, dogbone_style, clearance, border_gap, is_default, created_at")
     .or(`owner_id.eq.${user.id},is_default.eq.true`)
     .order("is_default", { ascending: false })
     .order("name");
@@ -60,7 +60,10 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error || !data) return apiError("database_error", error?.message ?? "Insert failed.", 500);
+  if (error || !data) {
+    console.error("Tool preset insert failed:", error);
+    return apiError("database_error", "Database error.", 500);
+  }
 
   return NextResponse.json(data, { status: 201 });
 }

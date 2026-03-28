@@ -53,7 +53,8 @@ export async function POST(request: Request) {
 
   if (!geoRes.ok) {
     const detail = await geoRes.text();
-    return apiError("export_failed", detail || "Export failed.", geoRes.status);
+    console.error("Export service error:", detail);
+    return apiError("export_failed", "Service error.", geoRes.status);
   }
 
   // Forward the ZIP bytes directly to the browser

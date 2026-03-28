@@ -63,7 +63,8 @@ export async function POST(
     .single();
 
   if (insertError || !version) {
-    return apiError("database_error", insertError?.message ?? "Insert failed.", 500);
+    console.error("Version insert failed:", insertError);
+    return apiError("database_error", "Database error.", 500);
   }
 
   // Update project's latest_version_id and sync draft_config to the saved config

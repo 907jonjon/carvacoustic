@@ -91,6 +91,13 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Billing (future launch)
+
+Stripe-based Pro plan billing is planned but not yet wired. The `.env.example`
+includes placeholder keys (`STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`,
+`STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID_MONTHLY`, `STRIPE_PRO_PRICE_ID_YEARLY`).
+These are not required for local development or the current free-preview launch.
+
 ## Running tests
 
 ```bash

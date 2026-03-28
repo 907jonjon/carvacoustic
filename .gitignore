@@ -51,6 +51,9 @@ yarn-error.log*
 supabase/.branches
 supabase/.temp
 
+# TypeScript build info
+*.tsbuildinfo
+
 # Misc
 *.tgz
 .vercel

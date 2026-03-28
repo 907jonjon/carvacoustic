@@ -10,6 +10,7 @@ import type {
   FlowDirection,
   Symmetry,
 } from "@/types/schema";
+import { defaultConfig } from "@/types/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -48,7 +49,12 @@ export function ProjectEditor({
   project: Project;
   latestVersionNumber: number;
 }) {
-  const [config, setConfig] = useState<CanonicalConfig>(project.draft_config);
+  // Merge v2 defaults into stored config so v1 projects get surface/slats/backing
+  const [config, setConfig] = useState<CanonicalConfig>(() => {
+    const stored = project.draft_config as Partial<CanonicalConfig>;
+    const defaults = defaultConfig(stored.project?.name ?? project.name);
+    return { ...defaults, ...stored, surface: { ...defaults.surface, ...stored.surface }, slats: { ...defaults.slats, ...stored.slats }, backing: { ...defaults.backing, ...stored.backing } };
+  });
 
   // View state
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");

@@ -30,6 +30,8 @@ export type ExportFormat = "dxf" | "svg" | "pdf" | "json";
 
 export type SurfaceType = "wave" | "terrain" | "ripple" | "mountain";
 
+export type SlatDistributionMode = "fit_to_boundary" | "manual";
+
 export type FlowDirection = "x" | "y" | "radial";
 
 // ---------------------------------------------------------------------------
@@ -74,6 +76,7 @@ export interface SlatConfig {
   tab_depth: number;      // how far tabs extend below base
   tab_count: number;      // number of tabs per slat (2–6)
   tab_clearance: number;  // fit clearance around each tab
+  distribution_mode?: SlatDistributionMode; // default: "fit_to_boundary"
 }
 
 export interface BackingConfig {
@@ -195,6 +198,7 @@ export function defaultConfig(
       tab_depth: 0.75,
       tab_count: 3,
       tab_clearance: 0.01,
+      distribution_mode: "fit_to_boundary",
     },
     backing: {
       enabled: true,

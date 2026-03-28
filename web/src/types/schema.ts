@@ -15,6 +15,7 @@ export type {
   ExportFormat,
   SurfaceType,
   FlowDirection,
+  SlatDistributionMode,
   ConfigProject,
   ConfigBoundary,
   SurfaceConfig,
@@ -72,6 +73,8 @@ export const SurfaceTypeSchema = z.enum(["wave", "terrain", "ripple", "mountain"
 
 export const FlowDirectionSchema = z.enum(["x", "y", "radial"]);
 
+export const SlatDistributionModeSchema = z.enum(["fit_to_boundary", "manual"]);
+
 export const ConfigProjectSchema = z.object({
   name: z.string().min(1).max(200),
   mode: ProjectModeSchema,
@@ -110,6 +113,7 @@ export const SlatConfigSchema = z.object({
   tab_depth: z.number().min(0.25),
   tab_count: z.number().int().min(2).max(6),
   tab_clearance: z.number().min(0),
+  distribution_mode: SlatDistributionModeSchema.default("fit_to_boundary"),
 });
 
 export const BackingConfigSchema = z.object({

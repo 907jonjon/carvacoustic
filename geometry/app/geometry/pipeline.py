@@ -21,6 +21,7 @@ from ..models import (
     GenerateResult,
     ValidationIssue,
     ValidationReport,
+    normalize_config,
 )
 from .height_field import generate_height_field
 from .slat_profiler import generate_backing_board, generate_slat_profiles
@@ -33,6 +34,7 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
     Run the full v2 geometry pipeline.
     Returns a GenerateResult with 2D SVG preview and validation report.
     """
+    config = normalize_config(config)
     issues: list[ValidationIssue] = []
 
     # ── Step 1: Config-level validation ──────────────────────────────────────
@@ -116,6 +118,7 @@ def run_pipeline_internal(config: CanonicalConfig) -> dict:
       heights     — 2D array
       issues      — list[ValidationIssue]
     """
+    config = normalize_config(config)
     config_issues = validate_config(config)
     if _has_errors(config_issues):
         return {"parts": [], "slat_parts": [], "backing": None,

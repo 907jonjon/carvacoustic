@@ -39,8 +39,8 @@ def validate_config(config: CanonicalConfig) -> list[ValidationIssue]:
             level="error",
             code="invalid_boundary",
             message=(
-                f"safe_margin ({boundary.safe_margin:.4f}) consumes more than 90% "
-                "of the smaller boundary dimension. No usable area remains."
+                f"Safe margin ({boundary.safe_margin:.4f}) consumes more than 90% "
+                "of the smaller panel dimension. No usable area remains."
             ),
             field="boundary.safe_margin",
         ))
@@ -53,8 +53,9 @@ def validate_config(config: CanonicalConfig) -> list[ValidationIssue]:
             level="error",
             code="part_too_wide",
             message=(
-                f"Slat width ({slat_width:.3f}) exceeds usable sheet width "
-                f"({usable_sheet_w:.3f}). Reduce boundary width or border_gap."
+                f"Individual slat is wider than the sheet stock — "
+                f"slat width ({slat_width:.3f}) exceeds usable sheet width "
+                f"({usable_sheet_w:.3f}). Reduce panel width or border gap."
             ),
             field="boundary.width",
         ))
@@ -65,8 +66,8 @@ def validate_config(config: CanonicalConfig) -> list[ValidationIssue]:
             level="error",
             code="feature_below_minimum",
             message=(
-                f"tab_width ({slats.tab_width:.4f}) is smaller than "
-                f"tool_diameter ({tool.tool_diameter:.4f}). Cannot cut tabs."
+                f"Tab width ({slats.tab_width:.4f}) is smaller than the "
+                f"bit diameter ({tool.tool_diameter:.4f}). The tool cannot cut tabs this narrow."
             ),
             field="slats.tab_width",
         ))
@@ -91,8 +92,9 @@ def validate_config(config: CanonicalConfig) -> list[ValidationIssue]:
             level="warning",
             code="thin_bridge",
             message=(
-                f"Slat spacing ({slats.spacing:.3f}) is less than slat thickness "
-                f"({slats.thickness:.3f}). Slats may not fit on backing board."
+                f"Slats are thicker than their center-to-center spacing — "
+                f"spacing ({slats.spacing:.3f}) vs thickness ({slats.thickness:.3f}). "
+                f"They'll overlap on the backing board."
             ),
             field="slats.spacing",
         ))

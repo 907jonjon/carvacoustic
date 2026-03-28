@@ -189,6 +189,9 @@ class SurfaceConfig(BaseModel):
     noise_amount: float = Field(ge=0, le=1, default=0.2)
 
 
+SlatDistributionMode = Literal["fit_to_boundary", "manual"]
+
+
 class SlatConfig(BaseModel):
     count: int = Field(ge=5, le=200, default=30)
     spacing: float = Field(ge=0.25, le=100, default=0.75)
@@ -198,6 +201,7 @@ class SlatConfig(BaseModel):
     tab_depth: float = Field(ge=0.25, default=0.75)
     tab_count: int = Field(ge=2, le=6, default=3)
     tab_clearance: float = Field(ge=0, default=0.01)
+    distribution_mode: SlatDistributionMode = "fit_to_boundary"
 
 
 class BackingConfig(BaseModel):
@@ -292,6 +296,49 @@ class CanonicalConfig(BaseModel):
         if isinstance(data, dict) and data.get("schema_version", "1.0.0") != "2.0.0":
             return migrate_config_v1_to_v2(data)
         return data
+
+
+# ---------------------------------------------------------------------------
+# Config normalizer — single source of truth for derived values
+# ---------------------------------------------------------------------------
+
+
+def normalize_config(config: CanonicalConfig) -> CanonicalConfig:
+    """
+    Derive dependent values so the rest of the pipeline sees a consistent config.
+
+    - fit_to_boundary mode: recompute spacing from boundary height
+    - Always sync slat thickness to material thickness
+    - Always derive backing dimensions from boundary/slat config
+    """
+    updates: dict[str, Any] = {}
+
+    # -- Slat spacing ----------------------------------------------------------
+    slat_updates: dict[str, Any] = {}
+    mode = config.slats.distribution_mode
+    if mode == "fit_to_boundary":
+        effective_spacing = (
+            (config.boundary.height - 2 * config.boundary.safe_margin)
+            / max(config.slats.count - 1, 1)
+        )
+        slat_updates["spacing"] = effective_spacing
+
+    # -- Sync thickness from material ------------------------------------------
+    slat_updates["thickness"] = config.fabrication.material.thickness
+
+    if slat_updates:
+        updates["slats"] = config.slats.model_copy(update=slat_updates)
+
+    # -- Derive backing dimensions ---------------------------------------------
+    resolved_slats = updates.get("slats", config.slats)
+    backing_updates: dict[str, Any] = {
+        "width": config.boundary.width,
+        "slot_width": resolved_slats.thickness + resolved_slats.tab_clearance,
+        "slot_depth": resolved_slats.tab_depth,
+    }
+    updates["backing"] = config.backing.model_copy(update=backing_updates)
+
+    return config.model_copy(update=updates)
 
 
 # ---------------------------------------------------------------------------

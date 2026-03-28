@@ -13,7 +13,15 @@ interface SlatAssemblyProps {
 export function SlatAssembly({ config, showExploded, showBacking }: SlatAssemblyProps) {
   const slats = useMemo(() => generateSlatGeometries(config), [config]);
 
-  const explodeOffset = showExploded ? config.slats.spacing * 2 : 0;
+  // Normalize spacing the same way the server does
+  const mode = config.slats.distribution_mode ?? "fit_to_boundary";
+  const spacing =
+    mode === "fit_to_boundary"
+      ? (config.boundary.height - 2 * config.boundary.safe_margin) /
+        Math.max(config.slats.count - 1, 1)
+      : config.slats.spacing;
+
+  const explodeOffset = showExploded ? spacing * 2 : 0;
 
   return (
     <group>
@@ -24,7 +32,7 @@ export function SlatAssembly({ config, showExploded, showBacking }: SlatAssembly
           position={[
             0,
             0,
-            i * config.slats.spacing + (showExploded ? i * explodeOffset : 0),
+            i * spacing + (showExploded ? i * explodeOffset : 0),
           ]}
         >
           <meshStandardMaterial
@@ -41,14 +49,14 @@ export function SlatAssembly({ config, showExploded, showBacking }: SlatAssembly
           position={[
             config.boundary.width / 2,
             -config.slats.tab_depth / 2,
-            ((config.slats.count - 1) * config.slats.spacing) / 2,
+            ((config.slats.count - 1) * spacing) / 2,
           ]}
         >
           <boxGeometry
             args={[
               config.boundary.width,
               config.backing.height,
-              (config.slats.count - 1) * config.slats.spacing + config.slats.thickness,
+              (config.slats.count - 1) * spacing + config.slats.thickness,
             ]}
           />
           <meshStandardMaterial color="#A0522D" roughness={0.8} />

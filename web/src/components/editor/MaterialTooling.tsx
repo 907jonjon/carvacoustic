@@ -23,7 +23,8 @@ export function MaterialTooling({
       <SectionHeader title="Material" />
       <FieldRow>
         <Num label={`Thickness (${u})`} value={config.fabrication.material.thickness}
-          onChange={(v) => onMaterialChange({ thickness: v })} min={0.01} />
+          onChange={(v) => onMaterialChange({ thickness: v })} min={0.01}
+          hint="Material thickness drives slat thickness" />
         <Num label={`Sheet width (${u})`} value={config.fabrication.material.sheet_width}
           onChange={(v) => onMaterialChange({ sheet_width: v })} min={1} />
         <Num label={`Sheet height (${u})`} value={config.fabrication.material.sheet_height}

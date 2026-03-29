@@ -383,6 +383,9 @@ class GenerateResult(BaseModel):
     part_count: int = 0
     slat_count: int = 0
     has_backing: bool = False
+    cut_preview_svg: str = ""          # Sheet layout SVG showing actual cut paths
+    sheet_count: int = 0               # Number of material sheets needed
+    sheet_utilization: float = 0.0     # Average utilization across sheets (0-1)
     generated_at: str = ""
 
 

@@ -359,6 +359,119 @@ def generate_slat_preview_svg(
     return "\n".join(lines)
 
 
+def generate_cut_preview_svg(
+    slat_parts: list[dict],
+    backing_part: dict | None,
+    layout_result: object | None,
+    config: "CanonicalConfig",
+) -> str:
+    """
+    Inline SVG showing actual cut paths arranged on material sheets.
+
+    Each sheet is rendered as a gray-bordered rectangle. Slat cut paths use
+    red (#cc3333) stroke; backing/slot paths use green (#339933) stroke.
+    Sheets are stacked vertically with a gap between them.
+    """
+    from ..layout import LayoutResult  # local import to avoid circular
+
+    if layout_result is None or not isinstance(layout_result, LayoutResult):
+        return ""
+    if not layout_result.sheets:
+        return ""
+
+    mat = config.fabrication.material
+    sheet_w = mat.sheet_width
+    sheet_h = mat.sheet_height
+    sheet_gap = sheet_h * 0.15
+
+    all_parts = list(slat_parts)
+    if backing_part:
+        all_parts.append(backing_part)
+
+    n_sheets = len(layout_result.sheets)
+    total_h = n_sheets * sheet_h + (n_sheets - 1) * sheet_gap
+    pad = max(sheet_w, total_h) * 0.03
+
+    vb_x = -pad
+    vb_y = -pad
+    vb_w = sheet_w + pad * 2
+    vb_h = total_h + pad * 2
+
+    sw = max(sheet_w, sheet_h) * 0.002  # stroke width
+
+    lines: list[str] = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="{vb_x:.4f} {vb_y:.4f} {vb_w:.4f} {vb_h:.4f}" '
+        f'width="100%" height="100%">',
+        f'<rect x="{vb_x:.4f}" y="{vb_y:.4f}" width="{vb_w:.4f}" height="{vb_h:.4f}" fill="#f8f8f8"/>',
+    ]
+
+    for si, sheet in enumerate(layout_result.sheets):
+        y_offset = si * (sheet_h + sheet_gap)
+
+        # Sheet border
+        lines.append(
+            f'<rect x="0" y="{y_offset:.4f}" width="{sheet_w:.4f}" height="{sheet_h:.4f}" '
+            f'fill="#fafafa" stroke="#999999" stroke-width="{sw:.4f}"/>'
+        )
+
+        # Sheet label
+        label_size = sheet_h * 0.04
+        lines.append(
+            f'<text x="{sheet_w * 0.01:.4f}" y="{y_offset + label_size * 1.5:.4f}" '
+            f'font-size="{label_size:.4f}" fill="#666666" font-family="sans-serif">'
+            f'Sheet {sheet.sheet_index}</text>'
+        )
+
+        # Draw placed parts
+        for pl in sheet.placements:
+            if pl.part_index < 0 or pl.part_index >= len(all_parts):
+                continue
+
+            part = all_parts[pl.part_index]
+            poly = part["polygon"]
+            bbox = part["bounding_box"]
+
+            # Compute offset: placement (x,y) is where part's bbox origin goes
+            # Part bbox origin = (bbox[0], bbox[1])
+            dx = pl.x - bbox[0]
+            dy_part = pl.y - bbox[1]
+            # In SVG (Y-down), we flip: y_svg = y_offset + (sheet_h - (pl.y - bbox[1] + bbox[3] - bbox[1]))
+            # Simpler: translate part to sheet coords, flip Y within sheet
+            # We'll use SVG transform per-part
+
+            # Determine colour: backing is green, slats are red
+            is_backing = part.get("part_id", "").startswith("BACK")
+            stroke_colour = "#339933" if is_backing else "#cc3333"
+
+            from shapely import affinity
+
+            # Translate polygon to placement position on sheet
+            moved = affinity.translate(poly, xoff=dx, yoff=0)
+
+            if pl.rotated_90:
+                # Rotate 90 CCW around placement origin
+                cx = pl.x + (bbox[2] - bbox[0]) / 2
+                cy = 0
+                moved = affinity.rotate(moved, 90, origin=(pl.x, 0))
+
+            # Now flip Y to SVG coords: y_svg = y_offset + sheet_h - y_math
+            # We'll extract coords and transform
+            pd = _geom_to_path_data(moved)
+            if pd:
+                # Apply Y-flip transform within this sheet
+                lines.append(
+                    f'<g transform="translate(0,{y_offset + sheet_h:.4f}) scale(1,-1)">'
+                    f'<g transform="translate(0,{dy_part:.4f})">'
+                    f'<path d="{pd}" fill="{stroke_colour}" fill-opacity="0.15" '
+                    f'stroke="{stroke_colour}" stroke-width="{sw * 0.8:.4f}" fill-rule="evenodd"/>'
+                    f'</g></g>'
+                )
+
+    lines.append("</svg>")
+    return "\n".join(lines)
+
+
 def _escape_xml(s: str) -> str:
     return (
         s.replace("&", "&amp;")

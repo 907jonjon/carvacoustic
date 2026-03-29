@@ -48,6 +48,9 @@ export function ProjectEditor({
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // 2D preview sub-tab
+  const [previewTab, setPreviewTab] = useState<"design" | "cut">("design");
+
   // Generate / validate / export state
   const [generating, setGenerating] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -319,13 +322,46 @@ export function ProjectEditor({
               </>
             )}
 
-            {viewMode === "2d" && generateResult?.part_count !== undefined && generateResult.part_count > 0 && (
+            {viewMode === "2d" && (
               <>
-                <span className="ml-auto text-xs text-gray-400">
-                  {generateResult.slat_count ?? generateResult.part_count} slat{(generateResult.slat_count ?? 0) !== 1 ? "s" : ""}
-                  {generateResult.has_backing && " + backing"}
-                </span>
+                <span className="ml-2 h-4 w-px bg-gray-200" />
+                <button
+                  onClick={() => setPreviewTab("design")}
+                  className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
+                    previewTab === "design"
+                      ? "bg-gray-200 text-gray-800"
+                      : "text-gray-400 hover:bg-gray-100"
+                  }`}
+                >
+                  Design Preview
+                </button>
+                <button
+                  onClick={() => setPreviewTab("cut")}
+                  className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
+                    previewTab === "cut"
+                      ? "bg-gray-200 text-gray-800"
+                      : "text-gray-400 hover:bg-gray-100"
+                  }`}
+                >
+                  Cut Preview
+                </button>
               </>
+            )}
+
+            {viewMode === "2d" && generateResult?.cut_preview_svg && (
+              <span className="ml-auto flex items-center gap-2 text-xs text-gray-400">
+                <span>{generateResult.sheet_count ?? 0} sheet{(generateResult.sheet_count ?? 0) !== 1 ? "s" : ""}</span>
+                <span>&bull;</span>
+                <span>{Math.round((generateResult.sheet_utilization ?? 0) * 100)}% utilization</span>
+                <span>&bull;</span>
+                <span>{generateResult.part_count ?? 0} parts</span>
+                {generateResult.has_backing && (
+                  <>
+                    <span>&bull;</span>
+                    <span>+ backing</span>
+                  </>
+                )}
+              </span>
             )}
           </div>
 
@@ -338,7 +374,7 @@ export function ProjectEditor({
                 showBacking={showBacking}
               />
             ) : (
-              <SvgPreview result={generateResult} />
+              <SvgPreview result={generateResult} previewMode={previewTab} />
             )}
           </div>
         </main>

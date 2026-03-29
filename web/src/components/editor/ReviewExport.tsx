@@ -69,9 +69,14 @@ export function ReviewExport({
             )}
           </div>
         )}
-        {issues.length === 0 && !actionError && (
+        {issues.length === 0 && !actionError && !result && (
           <p className="text-xs text-gray-400">
-            Run Prepare Review or Fabrication Check to see results.
+            Click Prepare Review to generate design and cut previews.
+          </p>
+        )}
+        {issues.length === 0 && !actionError && result && (
+          <p className="text-xs text-gray-400">
+            No validation issues found.
           </p>
         )}
         {issues.length > 0 && (
@@ -120,7 +125,12 @@ export function ReviewExport({
         </Button>
         {!canExport && result && (
           <p className="text-xs text-gray-400">
-            Fix validation errors before exporting.
+            Fix errors above before downloading cut files.
+          </p>
+        )}
+        {result && result.status === "ok" && (
+          <p className="mt-1 rounded bg-gray-50 px-2 py-1.5 text-xs text-gray-500">
+            {result.slat_count ?? 0} slats, {result.sheet_count ?? 0} sheet{(result.sheet_count ?? 0) !== 1 ? "s" : ""}, {Math.round((result.sheet_utilization ?? 0) * 100)}% utilization
           </p>
         )}
       </div>

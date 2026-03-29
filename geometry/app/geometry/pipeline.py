@@ -26,7 +26,8 @@ from ..models import (
 from .height_field import generate_height_field
 from .slat_profiler import generate_backing_board, generate_slat_profiles
 from .validation import validate_config, validate_geometry_v2
-from .export.svg_export import generate_slat_preview_svg
+from .export.svg_export import generate_slat_preview_svg, generate_cut_preview_svg
+from .layout import run_slat_layout
 
 
 def run_pipeline(config: CanonicalConfig) -> GenerateResult:
@@ -90,6 +91,16 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
     # ── Step 7: SVG preview ───────────────────────────────────────────────────
     svg_preview = generate_slat_preview_svg(slat_parts, backing_part, config)
 
+    # ── Step 8: Cut preview (layout on material sheets) ────────────────────
+    layout_result = run_slat_layout(all_parts, config)
+    cut_preview_svg = generate_cut_preview_svg(slat_parts, backing_part, layout_result, config)
+    sheet_count = len(layout_result.sheets) if layout_result else 0
+    sheet_utilization = (
+        sum(s.utilization for s in layout_result.sheets) / len(layout_result.sheets)
+        if layout_result and layout_result.sheets
+        else 0.0
+    )
+
     valid = not _has_errors(issues)
     status = "ok" if valid else "error"
 
@@ -101,6 +112,9 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
         part_count=len(all_parts),
         slat_count=len(slat_parts),
         has_backing=backing_part is not None,
+        cut_preview_svg=cut_preview_svg,
+        sheet_count=sheet_count,
+        sheet_utilization=sheet_utilization,
         generated_at=_now(),
     )
 

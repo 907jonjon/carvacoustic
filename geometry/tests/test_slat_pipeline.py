@@ -151,6 +151,14 @@ def test_pipeline_internal_parts(v2_config):
     assert len(result["parts"]) == v2_config.slats.count + 1  # slats + backing
 
 
+def test_pipeline_returns_cut_preview(v2_config):
+    """run_pipeline returns a cut preview SVG with sheet layout info."""
+    result = run_pipeline(v2_config)
+    assert result.cut_preview_svg.startswith("<svg")
+    assert result.sheet_count >= 1
+    assert result.sheet_utilization > 0
+
+
 def test_v1_config_auto_migrates():
     """A v1 config sent to run_pipeline is auto-migrated and still produces output."""
     v1_dict = {

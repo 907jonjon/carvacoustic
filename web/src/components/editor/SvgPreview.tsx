@@ -12,14 +12,30 @@ export interface GenerateResult {
   message?: string;
   validation?: { valid: boolean; issues: ValidationIssue[] };
   svg_preview?: string;
+  cut_preview_svg?: string;
+  sheet_count?: number;
+  sheet_utilization?: number;
   part_count?: number;
   slat_count?: number;
   has_backing?: boolean;
   generated_at?: string;
 }
 
-export function SvgPreview({ result }: { result: GenerateResult | null }) {
-  if (!result?.svg_preview) {
+export function SvgPreview({
+  result,
+  previewMode = "design",
+}: {
+  result: GenerateResult | null;
+  previewMode?: "design" | "cut";
+}) {
+  const svgContent =
+    previewMode === "cut" ? result?.cut_preview_svg : result?.svg_preview;
+
+  if (!svgContent) {
+    const emptyMessage =
+      previewMode === "cut"
+        ? "Click Prepare Review to see sheet cut layout"
+        : "Click Prepare Review to see slat design preview";
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center p-8 h-full">
         <div className="rounded-lg border-2 border-dashed border-gray-300 p-12">
@@ -36,14 +52,14 @@ export function SvgPreview({ result }: { result: GenerateResult | null }) {
             <path d="M2 18 Q7 15 12 18 Q17 21 22 18" />
           </svg>
         </div>
-        <p className="text-sm text-gray-400">Click Prepare Review to see cut layout</p>
+        <p className="text-sm text-gray-400">{emptyMessage}</p>
       </div>
     );
   }
 
   return (
     <div className="flex flex-1 flex-col h-full">
-      {result.validation && (
+      {result?.validation && (
         <div className="flex items-center gap-3 border-b border-gray-100 bg-white px-4 py-2 text-xs text-gray-500">
           <span className={result.validation.valid ? "text-green-600" : "text-red-600"}>
             {result.validation.valid ? "Valid" : "Has errors"}
@@ -53,7 +69,7 @@ export function SvgPreview({ result }: { result: GenerateResult | null }) {
       <div
         className="flex-1 p-4"
         /* SVG from our own geometry service -- safe to render inline */
-        dangerouslySetInnerHTML={{ __html: result.svg_preview }}
+        dangerouslySetInnerHTML={{ __html: svgContent }}
       />
     </div>
   );

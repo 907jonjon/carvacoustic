@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeader } from "./FormControls";
+import { enableBilling } from "@/lib/flags";
 import type { GenerateResult } from "./SvgPreview";
 import type { CanonicalConfig } from "@/types/schema";
 
@@ -139,6 +141,18 @@ export function ReviewExport({
         {!canExport && result && (
           <p className="text-xs text-gray-400">
             Fix errors above before downloading cut files.
+          </p>
+        )}
+        {!canExport && enableBilling && (
+          <p className="text-xs text-gray-500">
+            Free plan: 3 exports per month. Upgrade to Pro for unlimited
+            exports.{" "}
+            <Link
+              href="/app/billing"
+              className="font-medium text-brand-600 hover:text-brand-700"
+            >
+              Upgrade
+            </Link>
           </p>
         )}
         {result && result.status === "ok" && (

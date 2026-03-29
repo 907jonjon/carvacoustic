@@ -8,6 +8,12 @@ export default function LandingPage() {
         <span className="text-sm font-semibold text-gray-900">CarvAcoustic</span>
         <div className="flex items-center gap-3">
           <Link
+            href="/pricing"
+            className="text-sm text-gray-600 hover:text-gray-900"
+          >
+            Pricing
+          </Link>
+          <Link
             href="/login"
             className="text-sm text-gray-600 hover:text-gray-900"
           >
@@ -25,14 +31,11 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="flex flex-1 flex-col items-center justify-center px-6 py-24 text-center">
         <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-          Decorative panels,
-          <br />
-          Vectric-ready.
+          Design to Fabrication
         </h1>
         <p className="mt-5 max-w-xl text-lg text-gray-600">
-          Design wave fields, contour bands, and slat-rib patterns for wall art,
-          cabinet fronts, and architectural face panels. Export clean DXF/SVG
-          ready for Vectric.
+          Design profiled slat panels, preview in 3D, and export CNC-ready cut
+          files.
         </p>
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
           <Link
@@ -55,16 +58,16 @@ export default function LandingPage() {
         <div className="mx-auto grid max-w-4xl gap-8 sm:grid-cols-3">
           {[
             {
-              title: "Three panel modes",
-              body: "Wall art, cabinet front panels, architectural face panels.",
+              title: "3D Design Preview",
+              body: "Shape your surface, see the slats in real-time 3D before committing.",
             },
             {
-              title: "Three pattern families",
-              body: "wave_field, contour_bands, slat_rib — all deterministic.",
+              title: "CNC-Ready Export",
+              body: "DXF, SVG, and reference PDF — ready for your CNC workflow.",
             },
             {
-              title: "Vectric handoff",
-              body: "DXF, SVG, reference PDF, and JSON manifest — no G-code.",
+              title: "Profiled Slat Panels",
+              body: "Wave, terrain, ripple, and mountain surfaces with precise tab-and-slot joinery.",
             },
           ].map((f) => (
             <div key={f.title}>
@@ -75,8 +78,24 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Pricing CTA */}
+      <section className="border-t border-gray-100 bg-gray-50 px-6 py-12 text-center">
+        <h2 className="text-xl font-semibold text-gray-900">
+          Ready to start making?
+        </h2>
+        <p className="mt-2 text-sm text-gray-600">
+          Free to design. Upgrade when you need unlimited exports.
+        </p>
+        <Link
+          href="/pricing"
+          className="mt-4 inline-block rounded-md bg-brand-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-brand-700"
+        >
+          See pricing
+        </Link>
+      </section>
+
       <footer className="border-t border-gray-100 px-6 py-6 text-center text-xs text-gray-400">
-        © {new Date().getFullYear()} CarvAcoustic
+        &copy; {new Date().getFullYear()} CarvAcoustic
       </footer>
     </main>
   );

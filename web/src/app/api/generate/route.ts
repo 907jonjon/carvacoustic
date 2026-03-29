@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { canGenerate } from "@/lib/billing/access";
 import { CanonicalConfigSchema } from "@/types/schema";
 import type { ApiError } from "@/types/schema";
 import { z } from "zod";
@@ -15,6 +16,11 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return apiError("unauthenticated", "Authentication required.", 401);
+
+  const genAccess = await canGenerate(user.id);
+  if (!genAccess.allowed) {
+    return apiError("rate_limit", genAccess.reason ?? "Rate limit reached.", 429);
+  }
 
   let body: unknown;
   try { body = await request.json(); } catch {
@@ -48,5 +54,13 @@ export async function POST(request: Request) {
   }
 
   const data = await geoRes.json();
+
+  // Record usage event
+  await supabase.from("usage_events").insert({
+    user_id: user.id,
+    event_type: "generate",
+    metadata: { project_name: parsed.data.config?.project?.name ?? "unknown" },
+  });
+
   return NextResponse.json(data, { status: geoRes.status });
 }

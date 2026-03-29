@@ -39,3 +39,43 @@ export async function canExport(userId: string): Promise<{ allowed: boolean; rea
 
   return { allowed: true };
 }
+
+export async function canGenerate(userId: string): Promise<{ allowed: boolean; reason?: string }> {
+  const supabase = await createClient();
+
+  // Check daily generate count
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const { count } = await supabase
+    .from("usage_events")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("event_type", "generate")
+    .gte("created_at", startOfDay.toISOString());
+
+  const used = count ?? 0;
+
+  // Check if user has Pro subscription
+  const { data: sub } = await supabase
+    .from("subscriptions")
+    .select("status")
+    .eq("user_id", userId)
+    .in("status", ["active", "trialing"])
+    .limit(1)
+    .single();
+
+  const isPro = !!sub;
+  const limit = isPro ? 500 : 50;
+
+  if (used >= limit) {
+    return {
+      allowed: false,
+      reason: isPro
+        ? "Daily generation limit reached (500/day). Try again tomorrow."
+        : "Daily generation limit reached (50/day). Upgrade to Pro for higher limits.",
+    };
+  }
+
+  return { allowed: true };
+}

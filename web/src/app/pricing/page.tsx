@@ -112,10 +112,20 @@ export default function PricingPage() {
             </div>
           ))}
         </div>
+
+        <p className="mt-10 max-w-md text-center text-sm text-gray-500">
+          No long-term commitment. Cancel anytime from your billing
+          dashboard&nbsp;&mdash; your Pro access continues until the end of the
+          current billing period. No cancellation fees.
+        </p>
       </section>
 
       <footer className="border-t border-gray-100 bg-white px-6 py-6 text-center text-xs text-gray-400">
-        &copy; {new Date().getFullYear()} CarvAcoustic
+        <span>&copy; {new Date().getFullYear()} CarvAcoustic</span>
+        <span className="mx-2">&middot;</span>
+        <Link href="/terms" className="hover:text-gray-600">Terms</Link>
+        <span className="mx-2">&middot;</span>
+        <Link href="/privacy" className="hover:text-gray-600">Privacy</Link>
       </footer>
     </main>
   );

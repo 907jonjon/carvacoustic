@@ -43,6 +43,9 @@ export function ProjectEditor({
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
   const [showExploded, setShowExploded] = useState(false);
   const [showBacking, setShowBacking] = useState(true);
+  const [vpTheme, setVpTheme] = useState<"dark" | "light">("dark");
+  const [slatColor, setSlatColor] = useState("#8B6914");
+  const [backingColor, setBackingColor] = useState("#A0522D");
 
   // Save state
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -319,6 +322,32 @@ export function ProjectEditor({
                   />
                   Backing
                 </label>
+                <span className="ml-2 h-4 w-px bg-gray-200" />
+                <button
+                  onClick={() => setVpTheme(vpTheme === "dark" ? "light" : "dark")}
+                  className="rounded px-2 py-0.5 text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+                >
+                  {vpTheme === "dark" ? "Light" : "Dark"}
+                </button>
+                <span className="ml-1 h-4 w-px bg-gray-200" />
+                <label className="flex items-center gap-1 text-xs text-gray-600">
+                  Slat
+                  <input
+                    type="color"
+                    value={slatColor}
+                    onChange={(e) => setSlatColor(e.target.value)}
+                    className="h-5 w-5 cursor-pointer rounded border border-gray-300"
+                  />
+                </label>
+                <label className="flex items-center gap-1 text-xs text-gray-600">
+                  Back
+                  <input
+                    type="color"
+                    value={backingColor}
+                    onChange={(e) => setBackingColor(e.target.value)}
+                    className="h-5 w-5 cursor-pointer rounded border border-gray-300"
+                  />
+                </label>
               </>
             )}
 
@@ -372,6 +401,9 @@ export function ProjectEditor({
                 config={config}
                 showExploded={showExploded}
                 showBacking={showBacking}
+                theme={vpTheme}
+                slatColor={slatColor}
+                backingColor={backingColor}
               />
             ) : (
               <SvgPreview result={generateResult} previewMode={previewTab} />
@@ -390,6 +422,8 @@ export function ProjectEditor({
             saveStatus={saveStatus}
             saveError={saveError}
             latestVersionNumber={latestVersionNumber}
+            projectId={project.id}
+            config={config}
             onGenerate={handleGenerate}
             onValidate={handleValidate}
             onExport={handleExport}

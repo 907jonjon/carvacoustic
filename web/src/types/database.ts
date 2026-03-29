@@ -208,6 +208,32 @@ export interface Database {
         };
         Update: never;
       };
+      feedback_submissions: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          category: string;
+          message: string;
+          project_id: string | null;
+          config_snapshot: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          category: string;
+          message: string;
+          project_id?: string | null;
+          config_snapshot?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          category?: string;
+          message?: string;
+          project_id?: string | null;
+          config_snapshot?: Json | null;
+        };
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

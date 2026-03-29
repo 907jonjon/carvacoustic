@@ -8,9 +8,11 @@ interface SlatAssemblyProps {
   config: CanonicalConfig;
   showExploded: boolean;
   showBacking: boolean;
+  slatColor?: string;
+  backingColor?: string;
 }
 
-export function SlatAssembly({ config, showExploded, showBacking }: SlatAssemblyProps) {
+export function SlatAssembly({ config, showExploded, showBacking, slatColor = "#8B6914", backingColor = "#A0522D" }: SlatAssemblyProps) {
   const slats = useMemo(() => generateSlatGeometries(config), [config]);
 
   // Normalize spacing the same way the server does
@@ -36,7 +38,7 @@ export function SlatAssembly({ config, showExploded, showBacking }: SlatAssembly
           ]}
         >
           <meshStandardMaterial
-            color="#8B6914"
+            color={slatColor}
             roughness={0.7}
             metalness={0.1}
             side={THREE.DoubleSide}
@@ -59,7 +61,7 @@ export function SlatAssembly({ config, showExploded, showBacking }: SlatAssembly
               (config.slats.count - 1) * spacing + config.slats.thickness,
             ]}
           />
-          <meshStandardMaterial color="#A0522D" roughness={0.8} />
+          <meshStandardMaterial color={backingColor} roughness={0.8} />
         </mesh>
       )}
     </group>

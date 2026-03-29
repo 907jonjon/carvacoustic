@@ -71,6 +71,22 @@ export function SvgPreview({
         /* SVG from our own geometry service -- safe to render inline */
         dangerouslySetInnerHTML={{ __html: svgContent }}
       />
+      {previewMode === "cut" && (
+        <div className="flex items-center gap-4 border-t border-gray-100 bg-white px-4 py-2 text-xs text-gray-500">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-0.5 w-4" style={{ backgroundColor: "#cc3333" }} />
+            Slat cut paths
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-0.5 w-4" style={{ backgroundColor: "#339933" }} />
+            Backing / slot cuts
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-4 border border-gray-400 bg-gray-200" />
+            Sheet boundary
+          </span>
+        </div>
+      )}
     </div>
   );
 }

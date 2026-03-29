@@ -5,12 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeader } from "./FormControls";
 import type { GenerateResult } from "./SvgPreview";
+import type { CanonicalConfig } from "@/types/schema";
 
 const ISSUE_COLOURS: Record<string, string> = {
   error:   "text-red-700 bg-red-50 border-red-200",
   warning: "text-amber-700 bg-amber-50 border-amber-200",
   info:    "text-blue-700 bg-blue-50 border-blue-200",
 };
+
+const FEEDBACK_CATEGORIES = ["Bug", "Feature Request", "Usability", "Other"] as const;
 
 export function ReviewExport({
   result,
@@ -21,6 +24,8 @@ export function ReviewExport({
   saveStatus,
   saveError,
   latestVersionNumber,
+  projectId,
+  config,
   onGenerate,
   onValidate,
   onExport,
@@ -35,6 +40,8 @@ export function ReviewExport({
   saveStatus: "idle" | "saving" | "saved" | "error";
   saveError: string | null;
   latestVersionNumber: number;
+  projectId: string;
+  config: CanonicalConfig;
   onGenerate: () => void;
   onValidate: () => void;
   onExport: () => void;
@@ -43,6 +50,12 @@ export function ReviewExport({
 }) {
   const [versionNotes, setVersionNotes] = useState("");
   const [showVersionForm, setShowVersionForm] = useState(false);
+
+  // Feedback state
+  const [fbCategory, setFbCategory] = useState<string>(FEEDBACK_CATEGORIES[0]);
+  const [fbMessage, setFbMessage] = useState("");
+  const [fbStatus, setFbStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [fbError, setFbError] = useState<string | null>(null);
 
   const issues = result?.validation?.issues ?? [];
   const errors = issues.filter((i) => i.level === "error");
@@ -183,6 +196,69 @@ export function ReviewExport({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Feedback */}
+      <SectionHeader title="Send Feedback" />
+      <div className="flex flex-col gap-2 px-3 py-3">
+        {fbStatus === "sent" && (
+          <p className="text-xs text-green-600">Feedback submitted. Thank you!</p>
+        )}
+        {fbStatus === "error" && fbError && (
+          <p className="text-xs text-red-600">{fbError}</p>
+        )}
+        <select
+          value={fbCategory}
+          onChange={(e) => setFbCategory(e.target.value)}
+          className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+        >
+          {FEEDBACK_CATEGORIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <textarea
+          value={fbMessage}
+          onChange={(e) => setFbMessage(e.target.value)}
+          placeholder="Describe the issue or suggestion..."
+          rows={3}
+          maxLength={2000}
+          className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+        />
+        <Button
+          size="sm"
+          variant="secondary"
+          loading={fbStatus === "sending"}
+          disabled={!fbMessage.trim()}
+          onClick={async () => {
+            setFbStatus("sending");
+            setFbError(null);
+            try {
+              const res = await fetch("/api/feedback", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  category: fbCategory,
+                  message: fbMessage,
+                  project_id: projectId,
+                  config_snapshot: config,
+                }),
+              });
+              if (!res.ok) {
+                const d = await res.json();
+                throw new Error(d?.error?.message ?? "Submit failed.");
+              }
+              setFbStatus("sent");
+              setFbMessage("");
+              setTimeout(() => setFbStatus("idle"), 3000);
+            } catch (err) {
+              setFbStatus("error");
+              setFbError(err instanceof Error ? err.message : "Submit failed.");
+            }
+          }}
+          className="w-full"
+        >
+          Submit Feedback
+        </Button>
       </div>
     </div>
   );

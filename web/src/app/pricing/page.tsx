@@ -28,7 +28,7 @@ const plans = [
       "Priority support",
     ],
     cta: "Start Pro",
-    ctaHref: "/login",
+    ctaHref: "/app/billing",
     highlight: true,
   },
 ];

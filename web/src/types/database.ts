@@ -234,6 +234,71 @@ export interface Database {
           config_snapshot?: Json | null;
         };
       };
+      billing_customers: {
+        Row: {
+          id: string;
+          user_id: string;
+          stripe_customer_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          stripe_customer_id: string;
+          created_at?: string;
+        };
+        Update: {
+          stripe_customer_id?: string;
+        };
+      };
+      subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          stripe_subscription_id: string;
+          status: string;
+          plan: string;
+          current_period_start: string | null;
+          current_period_end: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          stripe_subscription_id: string;
+          status?: string;
+          plan?: string;
+          current_period_start?: string | null;
+          current_period_end?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          status?: string;
+          plan?: string;
+          current_period_start?: string | null;
+          current_period_end?: string | null;
+          updated_at?: string;
+        };
+      };
+      usage_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          event_type: string;
+          metadata: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          event_type: string;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+        Update: never;
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

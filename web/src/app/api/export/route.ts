@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { canExport } from "@/lib/billing/access";
 import { CanonicalConfigSchema } from "@/types/schema";
 import type { ApiError } from "@/types/schema";
 import { z } from "zod";
@@ -19,6 +20,11 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return apiError("unauthenticated", "Authentication required.", 401);
+
+  const access = await canExport(user.id);
+  if (!access.allowed) {
+    return apiError("export_limit_reached", access.reason ?? "Export limit reached.", 403);
+  }
 
   let body: unknown;
   try { body = await request.json(); } catch {
@@ -56,6 +62,13 @@ export async function POST(request: Request) {
     console.error("Export service error:", detail);
     return apiError("export_failed", "Service error.", geoRes.status);
   }
+
+  // Record usage event
+  await supabase.from("usage_events").insert({
+    user_id: user.id,
+    event_type: "export",
+    metadata: { project_name: parsed.data.config?.project?.name ?? "unknown" },
+  });
 
   // Forward the ZIP bytes directly to the browser
   const zipBytes = await geoRes.arrayBuffer();

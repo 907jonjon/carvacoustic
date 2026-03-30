@@ -21,6 +21,7 @@ function LoginForm() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkEmail, setCheckEmail] = useState(false);
@@ -34,6 +35,9 @@ function LoginForm() {
 
     try {
       if (mode === "signup") {
+        if (inviteCode.trim().toUpperCase() !== "CARVTEST2026") {
+          throw new Error("Invalid invite code.");
+        }
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
 
@@ -133,6 +137,17 @@ function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            {mode === "signup" && (
+              <Input
+                label="Invite code"
+                type="text"
+                autoComplete="off"
+                required
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="Enter your invite code"
+              />
+            )}
 
             {error && (
               <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">

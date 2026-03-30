@@ -208,7 +208,7 @@ class BackingConfig(BaseModel):
     enabled: bool = True
     width: float = Field(default=48.0, le=1000)
     height: float = Field(default=3.0, le=1000)
-    slot_width: float = 0.76  # slat thickness + clearance
+    slot_width: float = 0.51  # tab_width + clearance
     slot_depth: float = 0.75
     mounting_holes: bool = True
 
@@ -261,7 +261,7 @@ def migrate_config_v1_to_v2(old: dict) -> dict:
         "enabled": True,
         "width": float(old.get("boundary", {}).get("width", 48.0)),
         "height": 3.0,
-        "slot_width": thickness + 0.01,
+        "slot_width": 0.5 + 0.01,  # tab_width + clearance
         "slot_depth": 0.75,
         "mounting_holes": True,
     }
@@ -333,7 +333,7 @@ def normalize_config(config: CanonicalConfig) -> CanonicalConfig:
     resolved_slats = updates.get("slats", config.slats)
     backing_updates: dict[str, Any] = {
         "width": config.boundary.width,
-        "slot_width": resolved_slats.thickness + resolved_slats.tab_clearance,
+        "slot_width": resolved_slats.tab_width + resolved_slats.tab_clearance,
         "slot_depth": resolved_slats.tab_depth,
     }
     updates["backing"] = config.backing.model_copy(update=backing_updates)

@@ -137,7 +137,7 @@ def test_backing_auto_derived():
     cfg = _make_config()
     normalized = normalize_config(cfg)
     assert normalized.backing.width == cfg.boundary.width
-    assert normalized.backing.slot_width == normalized.slats.thickness + normalized.slats.tab_clearance
+    assert normalized.backing.slot_width == normalized.slats.tab_width + normalized.slats.tab_clearance
     assert normalized.backing.slot_depth == normalized.slats.tab_depth
 
 

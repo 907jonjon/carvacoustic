@@ -129,19 +129,49 @@ def create_reference_pdf(
     story.append(_two_col_table(proj_data, content_w))
     story.append(Spacer(1, 0.1 * inch))
 
-    # Pattern table
-    story.append(Paragraph("Pattern", subheading_style))
+    # Surface / Slats table (v2) or Pattern table (v1 fallback)
     pat = config.pattern
-    pattern_data = [
-        ["Family", pat.family.value.replace("_", " ").title()],
-        ["Density", f"{pat.density:.2f}"],
-        ["Spacing", f"{pat.spacing:.3f} {units}"],
-        ["Line width", f"{pat.line_width:.3f} {units}"],
-        ["Amplitude", f"{pat.amplitude:.3f} {units}"],
-        ["Symmetry", pat.symmetry.value],
-        ["Seed", str(pat.seed)],
-    ]
-    story.append(_two_col_table(pattern_data, content_w))
+    if pat is not None:
+        story.append(Paragraph("Pattern", subheading_style))
+        pattern_data = [
+            ["Family", pat.family.value.replace("_", " ").title()],
+            ["Density", f"{pat.density:.2f}"],
+            ["Spacing", f"{pat.spacing:.3f} {units}"],
+            ["Line width", f"{pat.line_width:.3f} {units}"],
+            ["Amplitude", f"{pat.amplitude:.3f} {units}"],
+            ["Symmetry", pat.symmetry.value],
+            ["Seed", str(pat.seed)],
+        ]
+        story.append(_two_col_table(pattern_data, content_w))
+    else:
+        surf = config.surface
+        story.append(Paragraph("Surface", subheading_style))
+        surface_data = [
+            ["Type", str(surf.type).replace("_", " ").title()],
+            ["Max depth", f"{surf.max_depth:.3f} {units}"],
+            ["Min depth", f"{surf.min_depth:.3f} {units}"],
+            ["Amplitude", f"{surf.amplitude:.3f}"],
+            ["Frequency", f"{surf.frequency:.1f}"],
+            ["Flow direction", str(surf.flow_direction)],
+            ["Symmetry", str(surf.symmetry)],
+            ["Smoothness", f"{surf.smoothness:.2f}"],
+            ["Seed", str(surf.seed)],
+        ]
+        story.append(_two_col_table(surface_data, content_w))
+        story.append(Spacer(1, 0.1 * inch))
+
+        slats = config.slats
+        story.append(Paragraph("Slats", subheading_style))
+        slat_data = [
+            ["Count", str(slats.count)],
+            ["Spacing", f"{slats.spacing:.3f} {units}"],
+            ["Thickness", f"{slats.thickness:.3f} {units}"],
+            ["Base height", f"{slats.base_height:.3f} {units}"],
+            ["Tab count", str(slats.tab_count)],
+            ["Tab width", f"{slats.tab_width:.3f} {units}"],
+            ["Tab depth", f"{slats.tab_depth:.3f} {units}"],
+        ]
+        story.append(_two_col_table(slat_data, content_w))
     story.append(Spacer(1, 0.1 * inch))
 
     # Fabrication table

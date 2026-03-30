@@ -6,7 +6,7 @@
  */
 
 /** Stripe billing checkout, portal, and export gating. */
-export const enableBilling = true;
+export const enableBilling = false;
 
 /** Multi-sheet tiled backing boards for large installations. */
 export const enableTiledBacking = false;

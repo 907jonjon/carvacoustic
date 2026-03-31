@@ -121,7 +121,7 @@ export function SheetReview({ project }: { project: Project }) {
     result?.status === "ok" && result.validation?.valid !== false;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
       {/* Header */}
       <div className="border-b border-gray-200 bg-white px-6 py-4">
         <div className="flex items-center justify-between">

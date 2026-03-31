@@ -88,7 +88,7 @@ def generate_preview_svg(
     lines: list[str] = [
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="{vb_x:.4f} {vb_y:.4f} {vb_w:.4f} {vb_h:.4f}" '
-        f'width="100%" height="100%">',
+        f'width="100%">',
         # Y-flip group: translate down by (2*miny + h), scale Y by -1
         f'<g transform="translate(0,{(2*miny + h):.4f}) scale(1,-1)">',
     ]
@@ -298,7 +298,7 @@ def generate_slat_preview_svg(
     lines: list[str] = [
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="{vb_x:.4f} {vb_y:.4f} {vb_w:.4f} {vb_h:.4f}" '
-        f'width="100%" height="100%">',
+        f'width="100%">',
         f'<rect x="{vb_x:.4f}" y="{vb_y:.4f}" width="{vb_w:.4f}" height="{vb_h:.4f}" fill="#f8f8f8"/>',
         # Y-flip group
         f'<g transform="translate(0,0) scale(1,-1)">',
@@ -402,7 +402,7 @@ def generate_cut_preview_svg(
     lines: list[str] = [
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="{vb_x:.4f} {vb_y:.4f} {vb_w:.4f} {vb_h:.4f}" '
-        f'width="100%" height="100%">',
+        f'width="100%">',
         f'<rect x="{vb_x:.4f}" y="{vb_y:.4f}" width="{vb_w:.4f}" height="{vb_h:.4f}" fill="#f8f8f8"/>',
     ]
 

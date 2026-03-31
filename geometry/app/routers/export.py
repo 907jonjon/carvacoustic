@@ -2,6 +2,8 @@
 POST /export — assemble and return the export ZIP bundle.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
@@ -9,6 +11,8 @@ from ..auth import require_api_key
 from ..geometry.export.bundle import build_export_bundle
 from ..geometry.validation import validate_config
 from ..models import ExportRequest
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/export", tags=["export"])
 
@@ -28,6 +32,12 @@ async def export(request: ExportRequest) -> Response:
         zip_bytes, filename = build_export_bundle(config)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        _log.error("Export bundle failed unexpectedly: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Export failed: {type(exc).__name__}: {exc}",
+        )
 
     return Response(
         content=zip_bytes,

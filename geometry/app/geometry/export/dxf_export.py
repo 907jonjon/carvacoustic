@@ -128,8 +128,9 @@ def _add_ring(msp: "Modelspace", coords: list[tuple], layer: str) -> None:
     pts = coords[:-1] if coords and coords[0] == coords[-1] else coords
     if len(pts) < 2:
         return
+    # Extract only (x, y) — Shapely coords can be 3D (x, y, z)
     msp.add_lwpolyline(
-        [(x, y) for x, y in pts],
+        [(c[0], c[1]) for c in pts],
         dxfattribs={"layer": layer, "closed": True},
     )
 

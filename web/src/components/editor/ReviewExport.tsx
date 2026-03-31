@@ -128,6 +128,11 @@ export function ReviewExport({
         >
           Fabrication Check
         </Button>
+        <Link href={`/app/projects/${projectId}/review`} className="w-full">
+          <Button variant="secondary" className="w-full">
+            Review Sheet Layout →
+          </Button>
+        </Link>
         <Button
           variant="secondary"
           onClick={onExport}

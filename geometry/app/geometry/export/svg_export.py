@@ -432,40 +432,37 @@ def generate_cut_preview_svg(
             poly = part["polygon"]
             bbox = part["bounding_box"]
 
-            # Compute offset: placement (x,y) is where part's bbox origin goes
-            # Part bbox origin = (bbox[0], bbox[1])
+            # Translate part from its local coordinate space to the sheet
+            # placement position.  placement (x, y) is the target for the
+            # part's bounding-box origin (bbox[0], bbox[1]).
+            from shapely import affinity
+
             dx = pl.x - bbox[0]
-            dy_part = pl.y - bbox[1]
-            # In SVG (Y-down), we flip: y_svg = y_offset + (sheet_h - (pl.y - bbox[1] + bbox[3] - bbox[1]))
-            # Simpler: translate part to sheet coords, flip Y within sheet
-            # We'll use SVG transform per-part
+            dy = pl.y - bbox[1]
+            moved = affinity.translate(poly, xoff=dx, yoff=dy)
+
+            if pl.rotated_90:
+                # Rotate 90° CCW around the placed part's centre
+                part_w = bbox[2] - bbox[0]
+                part_h = bbox[3] - bbox[1]
+                cx = pl.x + part_w / 2.0
+                cy = pl.y + part_h / 2.0
+                moved = affinity.rotate(moved, 90, origin=(cx, cy))
 
             # Determine colour: backing is green, slats are red
             is_backing = part.get("part_id", "").startswith("BACK")
             stroke_colour = "#339933" if is_backing else "#cc3333"
 
-            from shapely import affinity
-
-            # Translate polygon to placement position on sheet
-            moved = affinity.translate(poly, xoff=dx, yoff=0)
-
-            if pl.rotated_90:
-                # Rotate 90 CCW around placement origin
-                cx = pl.x + (bbox[2] - bbox[0]) / 2
-                cy = 0
-                moved = affinity.rotate(moved, 90, origin=(pl.x, 0))
-
-            # Now flip Y to SVG coords: y_svg = y_offset + sheet_h - y_math
-            # We'll extract coords and transform
             pd = _geom_to_path_data(moved)
             if pd:
-                # Apply Y-flip transform within this sheet
+                # Single Y-flip group per part, scoped to this sheet's
+                # vertical offset.  No nested translate — the Shapely
+                # transform already placed the part correctly.
                 lines.append(
                     f'<g transform="translate(0,{y_offset + sheet_h:.4f}) scale(1,-1)">'
-                    f'<g transform="translate(0,{dy_part:.4f})">'
                     f'<path d="{pd}" fill="{stroke_colour}" fill-opacity="0.15" '
                     f'stroke="{stroke_colour}" stroke-width="{sw * 0.8:.4f}" fill-rule="evenodd"/>'
-                    f'</g></g>'
+                    f'</g>'
                 )
 
     lines.append("</svg>")

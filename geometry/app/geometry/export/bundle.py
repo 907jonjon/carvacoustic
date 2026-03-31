@@ -13,6 +13,7 @@ Bundle contents:
 from __future__ import annotations
 
 import io
+import logging
 import re
 import zipfile
 from datetime import datetime, timezone
@@ -26,6 +27,8 @@ from ..pipeline import run_pipeline_internal
 from .dxf_export import _add_geometry, create_dxf
 from .svg_export import generate_file_svg
 from .pdf_export import create_reference_pdf
+
+_log = logging.getLogger(__name__)
 
 _README_TEMPLATE = """\
 CarvAcoustic Export Bundle
@@ -93,56 +96,71 @@ def build_export_bundle(config: CanonicalConfig) -> tuple[bytes, str]:
     # ── Build per-sheet DXF/SVG ───────────────────────────────────────────────
     sheet_files: list[str] = []
     sheet_artifacts: dict[str, bytes] = {}
+    sheet_warnings: list[str] = []
 
     for sheet in layout_result.sheets:
         idx = sheet.sheet_index
         sheet_label = f"sheet-{idx:02d}"
 
-        s_slat_polys: list[Polygon] = []
-        s_slot_polys: list[Polygon] = []
-        s_labels: list[dict] = []
+        try:
+            s_slat_polys: list[Polygon] = []
+            s_slot_polys: list[Polygon] = []
+            s_labels: list[dict] = []
 
-        for placement in sheet.placements:
-            part = all_parts[placement.part_index]
-            poly = part["polygon"]
+            for placement in sheet.placements:
+                part = all_parts[placement.part_index]
+                poly = part["polygon"]
 
-            # Translate polygon from local space to sheet position
-            minx, miny = poly.bounds[0], poly.bounds[1]
-            tp = affinity.translate(poly, xoff=-minx + placement.x, yoff=-miny + placement.y)
+                # Translate polygon from local space to sheet position
+                minx, miny = poly.bounds[0], poly.bounds[1]
+                tp = affinity.translate(poly, xoff=-minx + placement.x, yoff=-miny + placement.y)
 
-            if placement.rotated_90:
-                tp = affinity.rotate(tp, 90, origin=(placement.x, placement.y), use_radians=False)
+                if placement.rotated_90:
+                    tp = affinity.rotate(tp, 90, origin=(placement.x, placement.y), use_radians=False)
 
-            if part["part_type"] == "backing":
-                s_slot_polys.append(tp)
-            else:
-                s_slat_polys.append(tp)
+                if part["part_type"] == "backing":
+                    s_slot_polys.append(tp)
+                else:
+                    s_slat_polys.append(tp)
 
-            if "label" in part:
-                lbl = part["label"]
-                lx = lbl["x"] - minx + placement.x
-                ly = lbl["y"] - miny + placement.y
-                h = (poly.bounds[3] - poly.bounds[1]) * 0.05
-                s_labels.append({"text": lbl["text"], "x": lx, "y": ly, "height": h})
+                if "label" in part:
+                    lbl = part["label"]
+                    lx = lbl["x"] - minx + placement.x
+                    ly = lbl["y"] - miny + placement.y
+                    h = (poly.bounds[3] - poly.bounds[1]) * 0.05
+                    s_labels.append({"text": lbl["text"], "x": lx, "y": ly, "height": h})
 
-        if not s_slat_polys and not s_slot_polys:
+            if not s_slat_polys and not s_slot_polys:
+                continue
+
+            dxf_bytes = _create_slat_dxf(s_slat_polys, s_slot_polys, s_labels, units)
+            svg_string = _create_slat_svg(s_slat_polys, s_slot_polys, s_labels, units)
+
+            dxf_name = f"{sheet_label}.dxf"
+            svg_name = f"{sheet_label}.svg"
+            sheet_artifacts[dxf_name] = dxf_bytes
+            sheet_artifacts[svg_name] = svg_string.encode("utf-8")
+            sheet_files += [dxf_name, svg_name]
+
+        except Exception as exc:
+            _log.warning("Sheet %s export failed: %s", sheet_label, exc, exc_info=True)
+            sheet_warnings.append(f"Sheet {idx} skipped: {exc}")
             continue
 
-        dxf_bytes = _create_slat_dxf(s_slat_polys, s_slot_polys, s_labels, units)
-        svg_string = _create_slat_svg(s_slat_polys, s_slot_polys, s_labels, units)
-
-        dxf_name = f"{sheet_label}.dxf"
-        svg_name = f"{sheet_label}.svg"
-        sheet_artifacts[dxf_name] = dxf_bytes
-        sheet_artifacts[svg_name] = svg_string.encode("utf-8")
-        sheet_files += [dxf_name, svg_name]
+    if not sheet_artifacts:
+        raise ValueError(
+            "All sheets failed to export. "
+            + (" | ".join(sheet_warnings) if sheet_warnings else "No sheet data produced.")
+        )
 
     # ── Reference PDF ─────────────────────────────────────────────────────────
-    # Build a simple boundary polygon for the PDF preview from slat 0
-    preview_poly = slat_parts[0]["polygon"] if slat_parts else None
-    if preview_poly is None:
-        from shapely.geometry import box as shapely_box
-        preview_poly = shapely_box(0, 0, config.boundary.width, config.slats.base_height + 2)
+    from shapely.geometry import box as shapely_box
+
+    preview_poly = (
+        slat_parts[0]["polygon"]
+        if slat_parts
+        else shapely_box(0, 0, config.boundary.width, config.slats.base_height + 2)
+    )
 
     pdf_bytes = create_reference_pdf(
         config=config,

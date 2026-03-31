@@ -117,7 +117,8 @@ def build_export_bundle(config: CanonicalConfig) -> tuple[bytes, str]:
                 tp = affinity.translate(poly, xoff=-minx + placement.x, yoff=-miny + placement.y)
 
                 if placement.rotated_90:
-                    tp = affinity.rotate(tp, 90, origin=(placement.x, placement.y), use_radians=False)
+                    rcx, rcy = tp.centroid.x, tp.centroid.y
+                    tp = affinity.rotate(tp, 90, origin=(rcx, rcy), use_radians=False)
 
                 if part["part_type"] == "backing":
                     s_slot_polys.append(tp)

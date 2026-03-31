@@ -22,8 +22,9 @@ from shapely import affinity
 from shapely.geometry import Polygon
 
 from ...models import CanonicalConfig, ExportManifest
-from ..layout import LayoutResult, PartPlacement, SheetLayout, run_slat_layout
+from ..layout import LayoutResult, PartPlacement, SheetLayout
 from ..pipeline import run_pipeline_internal
+from ...nesting.ingest import run_nesting
 from .dxf_export import _add_geometry, create_dxf
 from .svg_export import generate_file_svg
 from .pdf_export import create_reference_pdf
@@ -89,7 +90,7 @@ def build_export_bundle(config: CanonicalConfig) -> tuple[bytes, str]:
         raise ValueError("Pipeline produced no parts — cannot build export bundle.")
 
     # ── Layout slat parts onto sheets ─────────────────────────────────────────
-    layout_result = run_slat_layout(all_parts, config)
+    layout_result = run_nesting(all_parts, config)
     if not layout_result.sheets:
         layout_result = _single_part_fallback(all_parts)
 

@@ -47,6 +47,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const data = await geoRes.json();
+  if (!geoRes.ok) {
+    const detail = await geoRes.text();
+    console.error("Validate service error:", geoRes.status, detail);
+    return apiError("validate_failed", `Geometry service error (${geoRes.status}).`, geoRes.status);
+  }
+
+  let data: unknown;
+  try {
+    data = await geoRes.json();
+  } catch {
+    return apiError("validate_failed", "Geometry service returned invalid response.", 502);
+  }
+
   return NextResponse.json(data, { status: geoRes.status });
 }

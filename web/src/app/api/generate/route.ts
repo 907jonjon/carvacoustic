@@ -53,7 +53,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const data = await geoRes.json();
+  if (!geoRes.ok) {
+    const detail = await geoRes.text();
+    console.error("Generate service error:", geoRes.status, detail);
+    return apiError("generate_failed", `Geometry service error (${geoRes.status}).`, geoRes.status);
+  }
+
+  let data: unknown;
+  try {
+    data = await geoRes.json();
+  } catch {
+    return apiError("generate_failed", "Geometry service returned invalid response.", 502);
+  }
 
   // Record usage event
   await supabase.from("usage_events").insert({

@@ -178,7 +178,7 @@ export const ConfigReservedAcousticSchema = z.object({
 // v2 canonical config schema — accepts both v2 (with surface/slats/backing) and
 // v1 (with pattern) since the geometry service auto-migrates v1 configs.
 export const CanonicalConfigSchema = z.object({
-  schema_version: z.string().regex(/^\d+\.\d+\.\d+$/),
+  schema_version: z.string().min(1),
   project: ConfigProjectSchema,
   boundary: ConfigBoundarySchema,
   // v2 fields

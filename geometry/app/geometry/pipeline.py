@@ -28,6 +28,7 @@ from .slat_profiler import generate_backing_board, generate_slat_profiles
 from .validation import validate_config, validate_geometry_v2
 from .export.svg_export import generate_slat_preview_svg, generate_cut_preview_svg
 from .layout import run_slat_layout
+from ..nesting.ingest import run_nesting
 
 
 def run_pipeline(config: CanonicalConfig) -> GenerateResult:
@@ -92,7 +93,7 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
     svg_preview = generate_slat_preview_svg(slat_parts, backing_part, config)
 
     # ── Step 8: Cut preview (layout on material sheets) ────────────────────
-    layout_result = run_slat_layout(all_parts, config)
+    layout_result = run_nesting(all_parts, config)
     cut_preview_svg = generate_cut_preview_svg(slat_parts, backing_part, layout_result, config)
     sheet_count = len(layout_result.sheets) if layout_result else 0
     sheet_utilization = (

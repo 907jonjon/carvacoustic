@@ -77,6 +77,37 @@ class NestJob:
 
 
 @dataclass
+class SolutionState:
+    """Mutable state for the entire nesting solution across all sheets."""
+    sheets: list = field(default_factory=list)          # list[SheetState]
+    unplaced_parts: list[PartSpec] = field(default_factory=list)
+    seed: int | None = None
+
+    def all_placements(self) -> list[Placement]:
+        result: list[Placement] = []
+        for sheet in self.sheets:
+            result.extend(sheet.placements)
+        return result
+
+    def sheet_count(self) -> int:
+        return len(self.sheets)
+
+    def average_utilization(self) -> float:
+        if not self.sheets:
+            return 0.0
+        sheet_areas = []
+        for sheet in self.sheets:
+            bounds = sheet.usable_bounds.bounds
+            usable_area = (bounds[2] - bounds[0]) * (bounds[3] - bounds[1])
+            util = sheet.used_area / usable_area if usable_area > 0 else 0.0
+            sheet_areas.append(util)
+        return sum(sheet_areas) / len(sheet_areas)
+
+    def total_score(self) -> float:
+        return sum(p.score for p in self.all_placements())
+
+
+@dataclass
 class NestResult:
     placements: list[Placement]
     sheets_used: int

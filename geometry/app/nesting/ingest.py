@@ -3,13 +3,16 @@ Bridge between slat_profiler output + CanonicalConfig and the nesting engine.
 
 prepare_nest_job()  — converts profiler dicts + config into a NestJob
 nest_result_to_layout_result() — converts NestResult back to LayoutResult
+run_nesting() — end-to-end: profiler output → LayoutResult with FFD fallback
 """
 
 from __future__ import annotations
 
+import logging
+
 from shapely.prepared import prep
 
-from ..geometry.layout import LayoutResult, PartPlacement, SheetLayout
+from ..geometry.layout import LayoutResult, PartPlacement, SheetLayout, run_slat_layout
 from ..models import CanonicalConfig
 from .geometry.flatten import simplify_polygon
 from .geometry.normalize import normalize_polygon
@@ -17,6 +20,8 @@ from .geometry.offsets import inflate_part
 from .geometry.preferred_edges import detect_preferred_edges
 from .geometry.transforms import apply_transform, enumerate_transforms
 from .models import NestJob, NestResult, PartSpec, SheetSpec, TransformSpec, VariantGeom
+
+logger = logging.getLogger(__name__)
 
 
 def prepare_nest_job(
@@ -159,3 +164,24 @@ def nest_result_to_layout_result(
         sheets=sheet_layouts,
         overflow=len(nest_result.unplaced),
     )
+
+
+def run_nesting(
+    parts: list[dict],
+    config: CanonicalConfig,
+    mode: str = "balanced",
+) -> LayoutResult:
+    """
+    End-to-end nesting: profiler output + config → LayoutResult.
+
+    Falls back to FFD packer if the nesting engine fails for any reason.
+    """
+    try:
+        from .solver.solve import solve_nest
+
+        job = prepare_nest_job(parts, config, mode=mode)
+        result = solve_nest(job, mode=mode)
+        return nest_result_to_layout_result(result, parts, job)
+    except Exception as exc:
+        logger.warning("Nesting engine failed, falling back to FFD: %s", exc)
+        return run_slat_layout(parts, config)

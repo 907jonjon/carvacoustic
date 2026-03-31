@@ -442,12 +442,9 @@ def generate_cut_preview_svg(
             moved = affinity.translate(poly, xoff=dx, yoff=dy)
 
             if pl.rotated_90:
-                # Rotate 90° CCW around the placed part's centre
-                part_w = bbox[2] - bbox[0]
-                part_h = bbox[3] - bbox[1]
-                cx = pl.x + part_w / 2.0
-                cy = pl.y + part_h / 2.0
-                moved = affinity.rotate(moved, 90, origin=(cx, cy))
+                # Rotate 90° CCW around the translated polygon's centroid
+                mcx, mcy = moved.centroid.x, moved.centroid.y
+                moved = affinity.rotate(moved, 90, origin=(mcx, mcy))
 
             # Determine colour: backing is green, slats are red
             is_backing = part.get("part_id", "").startswith("BACK")

@@ -23,12 +23,13 @@ RUN pip install --no-cache-dir --upgrade pip && \
     scipy \
     pydantic-settings
 
-# Copy application code
+# Copy application code and ensure appuser can read everything
 COPY app/ ./app/
 
 EXPOSE 8000
 
-RUN useradd -r -s /bin/false appuser
+RUN useradd -r -s /bin/false appuser && \
+    chmod -R a+rX /app
 USER appuser
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

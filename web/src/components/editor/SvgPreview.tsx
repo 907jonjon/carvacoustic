@@ -18,6 +18,7 @@ export interface GenerateResult {
   part_count?: number;
   slat_count?: number;
   has_backing?: boolean;
+  layout_engine?: string;
   generated_at?: string;
 }
 

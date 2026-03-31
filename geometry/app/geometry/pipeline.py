@@ -105,6 +105,9 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
     valid = not _has_errors(issues)
     status = "ok" if valid else "error"
 
+    # Which layout engine produced the result?
+    layout_engine = getattr(layout_result, "engine", "ffd")
+
     return GenerateResult(
         status=status,
         message="" if valid else "Generation completed with errors. See validation report.",
@@ -116,6 +119,7 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
         cut_preview_svg=cut_preview_svg,
         sheet_count=sheet_count,
         sheet_utilization=sheet_utilization,
+        layout_engine=layout_engine,
         generated_at=_now(),
     )
 

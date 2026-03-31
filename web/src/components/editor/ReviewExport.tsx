@@ -163,6 +163,15 @@ export function ReviewExport({
         {result && result.status === "ok" && (
           <p className="mt-1 rounded bg-gray-50 px-2 py-1.5 text-xs text-gray-500">
             {result.slat_count ?? 0} slats, {result.sheet_count ?? 0} sheet{(result.sheet_count ?? 0) !== 1 ? "s" : ""}, {Math.round((result.sheet_utilization ?? 0) * 100)}% utilization
+            {result.layout_engine && (
+              <span className={`ml-2 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${
+                result.layout_engine === "nesting"
+                  ? "bg-green-100 text-green-700"
+                  : "bg-amber-100 text-amber-700"
+              }`}>
+                {result.layout_engine === "nesting" ? "nesting engine" : "FFD fallback"}
+              </span>
+            )}
           </p>
         )}
       </div>

@@ -119,9 +119,47 @@ def nest_result_to_layout_result(
     Convert NestResult to the LayoutResult format expected by bundle.py.
 
     Maps each Placement to a PartPlacement with x, y, rotated_90, and part_index.
+
+    COORDINATE MAPPING:
+    The nesting engine works with centred polygons (centroid at origin) and stores
+    (x, y) as translation offsets from origin.  But svg_export.py expects (x, y) to
+    be the sheet position of the part's original bounding-box min corner:
+
+        dx = pl.x - bbox[0]   (where bbox = original polygon bounds)
+        dy = pl.y - bbox[1]
+
+    So we convert:  sheet_x = nesting_x + centroid_x - bbox_minx + bbox_minx
+    i.e. the placed position of the original polygon's min corner on the sheet is
+    nesting_x + centroid_x (since centring shifted by -centroid, placement shifts back).
+    But svg_export subtracts bbox[0] again, so we need to provide:
+        pl.x = nesting_x + centroid_x
+    which gives dx = nesting_x + centroid_x - bbox[0] = nesting_x - (-centroid_x + bbox[0])
+    Hmm, let's be explicit: after nesting, the part's min corner on the sheet is at:
+        sheet_minx = nesting_x + (centred_polygon.bounds[0])
+    And svg_export does:
+        dx = pl.x - original_bbox[0]
+        moved = translate(original_poly, dx, dy)
+    So the moved polygon's min-x = original_bbox[0] + dx = pl.x.
+    Therefore pl.x should equal the desired sheet_minx = nesting_x + centred_bounds[0].
+    But wait — centred_bounds[0] = original_bbox[0] - centroid_x. So:
+        pl.x = nesting_x + original_bbox[0] - centroid_x
+    And svg_export gives:
+        dx = (nesting_x + bbox[0] - cx) - bbox[0] = nesting_x - cx
+        moved_minx = bbox[0] + nesting_x - cx
+    We actually want the polygon placed so that the CENTRED polygon translated by
+    nesting_x lands correctly. The centred polygon's min-x is bbox[0]-cx.
+    After translate by nesting_x: min-x = bbox[0] - cx + nesting_x. ✓
+
+    Simpler approach: just translate the original polygon by the nesting offset,
+    then read off where its bounding box landed on the sheet.
     """
+    from shapely import affinity as _aff
+
     # Build part_id -> original index lookup
     id_to_index = {p["part_id"]: i for i, p in enumerate(parts)}
+
+    # Build part_id -> PartSpec lookup for centroid info
+    spec_map = {ps.part_id: ps for ps in job.parts}
 
     # Group placements by sheet
     sheets_map: dict[int, list[PartPlacement]] = {}
@@ -129,10 +167,58 @@ def nest_result_to_layout_result(
         orig_idx = id_to_index.get(pl.part_id, 0)
         rotated = pl.transform.angle_deg in (90.0, 270.0)
 
+        # Convert nesting coordinates to svg_export coordinates.
+        # The nesting engine centred the polygon at origin before placing.
+        # svg_export expects pl.x/pl.y to be the sheet position of the
+        # original polygon's bounding-box min corner.
+        orig_poly = parts[orig_idx]["polygon"]
+        orig_bbox = orig_poly.bounds  # (minx, miny, maxx, maxy)
+        cx, cy = orig_poly.centroid.x, orig_poly.centroid.y
+
+        # The nesting engine centred the poly by translating (-cx, -cy),
+        # then optionally rotated it, then placed it at (pl.x, pl.y).
+        # To find where the original poly's bbox min ends up on the sheet:
+        #
+        # For the unrotated case (angle=0):
+        #   placed poly = translate(translate(orig, -cx, -cy), pl.x, pl.y)
+        #               = translate(orig, pl.x - cx, pl.y - cy)
+        #   placed bbox min = (orig_minx + pl.x - cx, orig_miny + pl.y - cy)
+        #
+        # svg_export does: dx = target_x - orig_minx, so:
+        #   target_x = orig_minx + pl.x - cx → target_x = pl.x + orig_minx - cx
+        #
+        # For rotated case, we need to actually simulate the transform to find
+        # where the bounding box ends up.
+
+        spec = spec_map.get(pl.part_id)
+        if spec and spec.variants:
+            # Find the variant that matches this placement's transform
+            matching = [v for v in spec.variants if v.transform == pl.transform]
+            if matching:
+                variant = matching[0]
+                # The variant.polygon is the centred + transformed polygon.
+                # Translate it to the placed position.
+                placed = _aff.translate(variant.polygon, xoff=pl.x, yoff=pl.y)
+                placed_bbox = placed.bounds
+                # svg_export wants target_x such that:
+                #   translate(orig_poly, target_x - orig_bbox[0], target_y - orig_bbox[1])
+                # lands the poly at the right spot.
+                # For rotated parts, svg_export also applies rotation after translation,
+                # so we just need the bounding box origin.
+                target_x = placed_bbox[0]
+                target_y = placed_bbox[1]
+            else:
+                # Fallback: use simple offset
+                target_x = pl.x + orig_bbox[0] - cx
+                target_y = pl.y + orig_bbox[1] - cy
+        else:
+            target_x = pl.x + orig_bbox[0] - cx
+            target_y = pl.y + orig_bbox[1] - cy
+
         pp = PartPlacement(
             copy_index=0,
-            x=pl.x,
-            y=pl.y,
+            x=target_x,
+            y=target_y,
             rotated_90=rotated,
             part_index=orig_idx,
         )
@@ -175,13 +261,40 @@ def run_nesting(
     End-to-end nesting: profiler output + config → LayoutResult.
 
     Falls back to FFD packer if the nesting engine fails for any reason.
+    The returned LayoutResult has an `engine` attribute indicating which
+    engine produced the result ("nesting" or "ffd").
     """
     try:
         from .solver.solve import solve_nest
 
+        logger.info("Nesting engine starting: %d parts, mode=%s", len(parts), mode)
         job = prepare_nest_job(parts, config, mode=mode)
+        logger.info(
+            "NestJob ready: %d part specs, %d variants on first part",
+            len(job.parts),
+            len(job.parts[0].variants) if job.parts else 0,
+        )
         result = solve_nest(job, mode=mode)
-        return nest_result_to_layout_result(result, parts, job)
+        logger.info(
+            "Nesting complete: %d sheets, %.1f%% util, %d placed, %d unplaced, %.0fms",
+            result.sheets_used,
+            result.utilization * 100,
+            len(result.placements),
+            len(result.unplaced),
+            result.elapsed_ms,
+        )
+        layout = nest_result_to_layout_result(result, parts, job)
+        layout.engine = "nesting"  # type: ignore[attr-defined]
+        return layout
     except Exception as exc:
-        logger.warning("Nesting engine failed, falling back to FFD: %s", exc)
-        return run_slat_layout(parts, config)
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(
+            "Nesting engine FAILED — falling back to FFD.\n"
+            "Exception: %s: %s\n"
+            "Traceback:\n%s",
+            type(exc).__name__, exc, tb,
+        )
+        layout = run_slat_layout(parts, config)
+        layout.engine = "ffd"  # type: ignore[attr-defined]
+        return layout

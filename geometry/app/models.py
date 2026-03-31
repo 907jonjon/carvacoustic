@@ -386,6 +386,7 @@ class GenerateResult(BaseModel):
     cut_preview_svg: str = ""          # Sheet layout SVG showing actual cut paths
     sheet_count: int = 0               # Number of material sheets needed
     sheet_utilization: float = 0.0     # Average utilization across sheets (0-1)
+    layout_engine: str = ""            # "nesting" or "ffd" — which engine produced the layout
     generated_at: str = ""
 
 

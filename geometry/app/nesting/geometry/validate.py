@@ -31,9 +31,9 @@ def validate_solution(
     # Build lookup: part_id -> PartSpec
     part_map = {p.part_id: p for p in parts}
 
-    # Materialise placed inflated polygons
-    placed_polys: list[tuple[str, Polygon]] = []
-    placed_ids: list[str] = []
+    # Materialise placed inflated polygons, grouped by sheet
+    # Each entry: (part_id, sheet_index, polygon)
+    placed_polys: list[tuple[str, int, Polygon]] = []
 
     for pl in result.placements:
         spec = part_map.get(pl.part_id)
@@ -59,14 +59,15 @@ def validate_solution(
                 f"{pl.part_id} at ({pl.x:.2f}, {pl.y:.2f}) is outside sheet bounds"
             )
 
-        placed_polys.append((pl.part_id, translated))
-        placed_ids.append(pl.part_id)
+        placed_polys.append((pl.part_id, pl.sheet_index, translated))
 
-    # Check 1: pairwise overlap
+    # Check 1: pairwise overlap (only between parts on the SAME sheet)
     for i in range(len(placed_polys)):
         for j in range(i + 1, len(placed_polys)):
-            id_a, poly_a = placed_polys[i]
-            id_b, poly_b = placed_polys[j]
+            id_a, sheet_a, poly_a = placed_polys[i]
+            id_b, sheet_b, poly_b = placed_polys[j]
+            if sheet_a != sheet_b:
+                continue
             if poly_a.intersects(poly_b):
                 overlap = poly_a.intersection(poly_b)
                 if overlap.area > 1e-10:

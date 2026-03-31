@@ -1,0 +1,10 @@
+{
+  "sheet": {"width": 96.0, "height": 48.0, "edge_margin": 0.75, "grain_axis": null},
+  "clearance": 0.125,
+  "parts": [
+    {"part_id": "S001", "polygon_wkt": "POLYGON ((0 0, 48 0, 48 1.5, 36 4.0, 24 2.5, 12 3.8, 0 1.5, 0 0))", "quantity": 1, "grain_locked": false, "allow_mirror": false, "allowed_angles": [0, 90, 180, 270]},
+    {"part_id": "S002", "polygon_wkt": "POLYGON ((0 0, 48 0, 48 1.5, 40 3.5, 30 4.2, 18 3.0, 8 3.8, 0 1.5, 0 0))", "quantity": 1, "grain_locked": false, "allow_mirror": false, "allowed_angles": [0, 90, 180, 270]},
+    {"part_id": "S003", "polygon_wkt": "POLYGON ((0 0, 48 0, 48 1.5, 42 3.0, 34 4.5, 26 3.2, 16 4.0, 6 2.8, 0 1.5, 0 0))", "quantity": 1, "grain_locked": false, "allow_mirror": false, "allowed_angles": [0, 90, 180, 270]}
+  ],
+  "expected": {"max_sheets": 1, "min_utilization": 0.01}
+}

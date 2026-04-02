@@ -5,7 +5,7 @@ import { CanonicalConfigSchema } from "@/types/schema";
 import type { ApiError } from "@/types/schema";
 import { z } from "zod";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 function apiError(code: string, message: string, status = 400): NextResponse<ApiError> {
   return NextResponse.json({ error: { code, message } }, { status });
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   let geoRes: Response;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 55000);
+  const timeout = setTimeout(() => controller.abort(), 90000);
   try {
     geoRes = await fetch(`${geoUrl}/export`, {
       method: "POST",

@@ -19,6 +19,30 @@ export interface GenerateError {
   percent?: number;
 }
 
+function specificErrorMessage(
+  code: string,
+  fallback: string,
+  lastStep?: string,
+  lastPercent?: number,
+): string {
+  switch (code) {
+    case "timeout_no_data":
+      return "The geometry service is starting up. This usually takes 5-10 seconds on first request. Please try again.";
+    case "timeout":
+    case "timeout_stalled":
+      if (lastStep) {
+        return `Generation timed out during "${lastStep}" (${lastPercent ?? 0}% complete). The layout may be too complex — try reducing the number of slats or simplifying rotation settings.`;
+      }
+      return "The geometry service took too long to respond. It may be starting up — please try again.";
+    case "geometry_service_unavailable":
+      return "Could not connect to the geometry service. It may be offline or unreachable.";
+    case "network_error":
+      return "Could not connect to the geometry service. Check your internet connection and try again.";
+    default:
+      return fallback;
+  }
+}
+
 export function useGenerateStream() {
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState<GenerateProgress | null>(null);
@@ -49,7 +73,9 @@ export function useGenerateStream() {
           msg = errData?.error?.message ?? msg;
           code = errData?.error?.code ?? code;
         } catch { /* ignore parse errors */ }
-        setError({ code, message: msg, step: lastProgressName, percent: lastProgressPercent });
+        // Provide specific user-facing messages based on error code
+        const userMsg = specificErrorMessage(code, msg, lastProgressName, lastProgressPercent);
+        setError({ code, message: userMsg, step: lastProgressName, percent: lastProgressPercent });
         return;
       }
 
@@ -96,10 +122,13 @@ export function useGenerateStream() {
         }
       }
 
-      // Stream ended without result or error event — treat as error
+      // Stream ended without result or error event — stalled pipeline
+      const stallMsg = lastProgressName
+        ? `Generation stalled during "${lastProgressName}" (${lastProgressPercent ?? 0}% complete). The layout may be too complex — try reducing the number of slats or simplifying rotation settings.`
+        : "The geometry service stopped responding. Please try again.";
       setError({
         code: "stream_incomplete",
-        message: "Connection closed before generation completed.",
+        message: stallMsg,
         step: lastProgressName,
         percent: lastProgressPercent,
       });
@@ -113,17 +142,19 @@ export function useGenerateStream() {
         });
         const data = await res.json();
         if (!res.ok) {
+          const code = data?.error?.code ?? "generate_failed";
+          const msg = data?.error?.message ?? "Generate failed.";
           setError({
-            code: data?.error?.code ?? "generate_failed",
-            message: data?.error?.message ?? "Generate failed.",
+            code,
+            message: specificErrorMessage(code, msg, lastProgressName, lastProgressPercent),
           });
         } else {
           setResult(data);
         }
-      } catch (fallbackErr) {
+      } catch {
         setError({
           code: "network_error",
-          message: fallbackErr instanceof Error ? fallbackErr.message : "Network error.",
+          message: "Could not connect to the geometry service. Check your internet connection and try again.",
         });
       }
     } finally {

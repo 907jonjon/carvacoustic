@@ -5,7 +5,7 @@ import { CanonicalConfigSchema } from "@/types/schema";
 import type { ApiError } from "@/types/schema";
 import { z } from "zod";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 function apiError(code: string, message: string, status = 400): NextResponse<ApiError> {
   return NextResponse.json({ error: { code, message } }, { status });
@@ -37,8 +37,18 @@ export async function POST(request: Request) {
   const geoUrl = process.env.GEOMETRY_SERVICE_URL ?? "http://localhost:8001";
   const geoKey = process.env.GEOMETRY_SERVICE_API_KEY ?? "";
 
+  // Pre-warm: trigger Fly.io auto-start so cold-start time doesn't eat
+  // into the pipeline timeout. Fire-and-forget with a short timeout.
+  try {
+    await fetch(`${geoUrl}/health`, { signal: AbortSignal.timeout(15000) });
+  } catch {
+    // Machine may still be starting — proceed anyway
+  }
+
+  // Open SSE stream to geometry service with a generous initial timeout.
+  // Once connected, we switch to heartbeat-based timeout below.
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 55000);
+  const connectTimeout = setTimeout(() => controller.abort(), 30000);
 
   let geoRes: Response;
   try {
@@ -52,17 +62,21 @@ export async function POST(request: Request) {
       signal: controller.signal,
     });
   } catch (err) {
-    clearTimeout(timeout);
+    clearTimeout(connectTimeout);
     if (err instanceof DOMException && err.name === "AbortError") {
-      return apiError("timeout", "Geometry service took too long to respond. Try again — the service may be warming up.", 504);
+      return apiError(
+        "timeout_no_data",
+        "The geometry service is starting up. This usually takes 5-10 seconds on first request. Please try again.",
+        504
+      );
     }
     return apiError(
       "geometry_service_unavailable",
-      "Geometry service is not reachable. Make sure it is running on port 8001.",
+      "Could not connect to the geometry service. It may be offline or unreachable.",
       503
     );
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(connectTimeout);
   }
 
   if (!geoRes.ok) {
@@ -78,8 +92,36 @@ export async function POST(request: Request) {
     metadata: { project_name: parsed.data.config?.project?.name ?? "unknown" },
   });
 
-  // Pipe the SSE stream through to the browser
-  return new Response(geoRes.body, {
+  // Pipe SSE stream through with a heartbeat-based inactivity timeout.
+  // Reset a 30s timer each time data arrives. If the service goes silent
+  // for 30s (stuck pipeline), abort and close the stream.
+  const inactivityMs = 30000;
+  const streamController = new AbortController();
+  let inactivityTimer: ReturnType<typeof setTimeout>;
+
+  function resetInactivity() {
+    clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(() => streamController.abort(), inactivityMs);
+  }
+
+  resetInactivity();
+
+  const passthrough = new TransformStream({
+    transform(chunk, ctrl) {
+      resetInactivity();
+      ctrl.enqueue(chunk);
+    },
+    flush() {
+      clearTimeout(inactivityTimer);
+    },
+  });
+
+  const pipedStream = geoRes.body!.pipeThrough(passthrough);
+
+  // If the inactivity timer fires, the streamController aborts, which
+  // will cause the piped stream to error. The browser sees the stream end.
+
+  return new Response(pipedStream, {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",

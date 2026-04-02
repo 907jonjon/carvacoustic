@@ -171,7 +171,7 @@ export function SheetReview({ project }: { project: Project }) {
             <Select
               label="Rotation"
               value={rotationMode}
-              onChange={(e) => setRotationMode(e.target.value)}
+              onChange={(e) => setRotationMode(e.target.value as "none" | "90_only" | "any")}
             >
               <option value="none">None</option>
               <option value="90_only">90° only</option>

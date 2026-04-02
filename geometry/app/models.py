@@ -384,6 +384,15 @@ class ValidationReport(BaseModel):
     issues: list[ValidationIssue] = Field(default_factory=list)
 
 
+class PartGeometry(BaseModel):
+    """Serialized polygon for 3D rendering — full accurate cut geometry."""
+    part_id: str
+    part_type: str                              # "slat" | "backing"
+    exterior: list[list[float]]                 # [[x, y], ...] exterior ring
+    holes: list[list[list[float]]] = []         # [[[x, y], ...], ...] interior rings
+    bounding_box: list[float]                   # [minx, miny, maxx, maxy]
+
+
 class GenerateResult(BaseModel):
     status: Literal["ok", "error"]
     message: str = ""
@@ -396,6 +405,7 @@ class GenerateResult(BaseModel):
     sheet_count: int = 0               # Number of material sheets needed
     sheet_utilization: float = 0.0     # Average utilization across sheets (0-1)
     layout_engine: str = ""            # "nesting" or "ffd" — which engine produced the layout
+    part_geometries: list[PartGeometry] = Field(default_factory=list)
     generated_at: str = ""
 
 

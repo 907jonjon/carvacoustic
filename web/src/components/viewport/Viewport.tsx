@@ -5,6 +5,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import { SlatAssembly } from './SlatAssembly';
 import type { CanonicalConfig } from '@/types/schema';
+import type { PartGeometry } from '@/components/editor/SvgPreview';
 
 interface ViewportProps {
   config: CanonicalConfig;
@@ -13,6 +14,7 @@ interface ViewportProps {
   theme?: 'dark' | 'light';
   slatColor?: string;
   backingColor?: string;
+  partGeometries?: PartGeometry[];
 }
 
 function ClearColor({ color }: { color: string }) {
@@ -30,6 +32,7 @@ export function Viewport({
   theme = 'dark',
   slatColor,
   backingColor,
+  partGeometries,
 }: ViewportProps) {
   const width = config.boundary.width;
   const height = config.boundary.height;
@@ -64,6 +67,7 @@ export function Viewport({
           showBacking={showBacking}
           slatColor={slatColor}
           backingColor={backingColor}
+          partGeometries={partGeometries}
         />
 
         <Grid

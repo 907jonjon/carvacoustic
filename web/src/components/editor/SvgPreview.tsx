@@ -7,6 +7,14 @@ export interface ValidationIssue {
   field?: string | null;
 }
 
+export interface PartGeometry {
+  part_id: string;
+  part_type: "slat" | "backing";
+  exterior: [number, number][];
+  holes: [number, number][][];
+  bounding_box: [number, number, number, number];
+}
+
 export interface GenerateResult {
   status: "ok" | "error";
   message?: string;
@@ -19,6 +27,7 @@ export interface GenerateResult {
   slat_count?: number;
   has_backing?: boolean;
   layout_engine?: string;
+  part_geometries?: PartGeometry[];
   generated_at?: string;
 }
 

@@ -404,6 +404,7 @@ export function ProjectEditor({
                 theme={vpTheme}
                 slatColor={slatColor}
                 backingColor={backingColor}
+                partGeometries={generateResult?.part_geometries}
               />
             ) : (
               <SvgPreview result={generateResult} previewMode={previewTab} />

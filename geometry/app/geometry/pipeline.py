@@ -20,6 +20,7 @@ from shapely.geometry import Polygon
 from ..models import (
     CanonicalConfig,
     GenerateResult,
+    PartGeometry,
     ValidationIssue,
     ValidationReport,
     normalize_config,
@@ -100,6 +101,21 @@ def run_pipeline(
                 "y": float(centroid.y),
             }
 
+    # ── Serialize full polygons for 3D rendering ────────────────────────────
+    part_geometries: list[PartGeometry] = []
+    for part in all_parts:
+        poly = part["polygon"]
+        part_geometries.append(PartGeometry(
+            part_id=part["part_id"],
+            part_type=part["part_type"],
+            exterior=[[float(x), float(y)] for x, y in poly.exterior.coords],
+            holes=[
+                [[float(x), float(y)] for x, y in ring.coords]
+                for ring in poly.interiors
+            ],
+            bounding_box=[float(v) for v in poly.bounds],
+        ))
+
     # ── Step 6: Geometry validation ───────────────────────────────────────────
     _progress(6, "Validating geometry")
     geom_issues = validate_geometry_v2(all_parts, config)
@@ -157,6 +173,7 @@ def run_pipeline(
         sheet_count=sheet_count,
         sheet_utilization=sheet_utilization,
         layout_engine=layout_engine,
+        part_geometries=part_geometries,
         generated_at=_now(),
     )
 

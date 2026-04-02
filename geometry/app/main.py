@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .routers import generate, validate, layout, export
+from .routers import generate, validate, layout, export, preview
 
 _environment = os.getenv("ENVIRONMENT", "development")
 _is_production = _environment == "production"
@@ -84,6 +84,7 @@ app.include_router(generate.router)
 app.include_router(validate.router)
 app.include_router(layout.router)
 app.include_router(export.router)
+app.include_router(preview.router)
 
 
 @app.get("/health", tags=["system"])

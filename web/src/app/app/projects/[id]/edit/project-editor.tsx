@@ -7,7 +7,7 @@
  * then export CNC-ready files.
  */
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import type { Database } from "@/types/database";
 import type { CanonicalConfig } from "@/types/schema";
@@ -21,7 +21,7 @@ import { MaterialTooling } from "@/components/editor/MaterialTooling";
 import { ExportFormats } from "@/components/editor/ExportFormats";
 import { ReviewExport } from "@/components/editor/ReviewExport";
 import { SvgPreview } from "@/components/editor/SvgPreview";
-import type { GenerateResult } from "@/components/editor/SvgPreview";
+import type { GenerateResult, PartGeometry } from "@/components/editor/SvgPreview";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 
@@ -61,11 +61,61 @@ export function ProjectEditor({
   const [generateResult, setGenerateResult] = useState<GenerateResult | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Preview geometry (from debounced /preview calls)
+  const [previewGeometries, setPreviewGeometries] = useState<PartGeometry[] | undefined>(undefined);
+  const [previewing, setPreviewing] = useState(false);
+
+  // Workflow enforcement: must review cut layout before exporting
+  const [hasReviewedCutLayout, setHasReviewedCutLayout] = useState(false);
+
+  // ── Debounced auto-preview ─────────────────────────────────────────────────
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+
+    previewTimerRef.current = setTimeout(async () => {
+      // Abort any in-flight preview request
+      if (previewAbortRef.current) previewAbortRef.current.abort();
+      const controller = new AbortController();
+      previewAbortRef.current = controller;
+
+      setPreviewing(true);
+      try {
+        const res = await fetch("/api/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ config }),
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === "ok" && data.part_geometries) {
+            setPreviewGeometries(data.part_geometries);
+          }
+        }
+      } catch {
+        // Fail silently — preview is best-effort
+      } finally {
+        setPreviewing(false);
+      }
+    }, 1000);
+
+    return () => {
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    };
+  }, [config]);
+
+  // Use generateResult geometry when available, otherwise preview geometry
+  const activeGeometries = generateResult?.part_geometries ?? previewGeometries;
+
   // ── Config updaters ─────────────────────────────────────────────────────────
 
   function patch(p: Partial<CanonicalConfig>) {
     setConfig((prev) => ({ ...prev, ...p }));
     setSaveStatus("idle");
+    setHasReviewedCutLayout(false);
   }
   const patchProject = (p: Partial<CanonicalConfig["project"]>) =>
     patch({ project: { ...config.project, ...p } });
@@ -103,6 +153,10 @@ export function ProjectEditor({
         throw new Error(err?.error?.message ?? "Generate failed.");
       }
       setGenerateResult(data);
+      // Overwrite preview with authoritative generate geometry
+      if (data.part_geometries) {
+        setPreviewGeometries(data.part_geometries);
+      }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Generate failed.");
     } finally {
@@ -222,6 +276,12 @@ export function ProjectEditor({
           <span>{MODE_LABELS[config.project.mode]}</span>
           <span>&bull;</span>
           <span>{config.project.units}</span>
+          {previewing && (
+            <>
+              <span>&bull;</span>
+              <span className="text-brand-500 animate-pulse">Updating preview...</span>
+            </>
+          )}
           {generateResult?.generated_at && (
             <>
               <span>&bull;</span>
@@ -365,7 +425,10 @@ export function ProjectEditor({
                   Design Preview
                 </button>
                 <button
-                  onClick={() => setPreviewTab("cut")}
+                  onClick={() => {
+                    setPreviewTab("cut");
+                    setHasReviewedCutLayout(true);
+                  }}
                   className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
                     previewTab === "cut"
                       ? "bg-gray-200 text-gray-800"
@@ -404,7 +467,7 @@ export function ProjectEditor({
                 theme={vpTheme}
                 slatColor={slatColor}
                 backingColor={backingColor}
-                partGeometries={generateResult?.part_geometries}
+                partGeometries={activeGeometries}
               />
             ) : (
               <SvgPreview result={generateResult} previewMode={previewTab} />
@@ -425,11 +488,13 @@ export function ProjectEditor({
             latestVersionNumber={latestVersionNumber}
             projectId={project.id}
             config={config}
+            hasReviewedCutLayout={hasReviewedCutLayout}
             onGenerate={handleGenerate}
             onValidate={handleValidate}
             onExport={handleExport}
             onSaveDraft={handleSaveDraft}
             onSaveVersion={handleSaveVersion}
+            onViewCutLayout={() => setHasReviewedCutLayout(true)}
           />
         </aside>
       </div>

@@ -28,11 +28,13 @@ export function ReviewExport({
   latestVersionNumber,
   projectId,
   config,
+  hasReviewedCutLayout,
   onGenerate,
   onValidate,
   onExport,
   onSaveDraft,
   onSaveVersion,
+  onViewCutLayout,
 }: {
   result: GenerateResult | null;
   actionError: string | null;
@@ -44,11 +46,13 @@ export function ReviewExport({
   latestVersionNumber: number;
   projectId: string;
   config: CanonicalConfig;
+  hasReviewedCutLayout: boolean;
   onGenerate: () => void;
   onValidate: () => void;
   onExport: () => void;
   onSaveDraft: () => void;
   onSaveVersion: (notes: string) => void;
+  onViewCutLayout: () => void;
 }) {
   const [versionNotes, setVersionNotes] = useState("");
   const [showVersionForm, setShowVersionForm] = useState(false);
@@ -64,7 +68,17 @@ export function ReviewExport({
   const warnings = issues.filter((i) => i.level === "warning");
   const infos = issues.filter((i) => i.level === "info");
 
-  const canExport = result?.status === "ok" && result.validation?.valid !== false;
+  const resultValid = result?.status === "ok" && result.validation?.valid !== false;
+  const canExport = resultValid && hasReviewedCutLayout;
+
+  // Export button tooltip
+  const exportTitle = !result
+    ? "Generate design first"
+    : !resultValid
+      ? "Fix errors above before exporting"
+      : !hasReviewedCutLayout
+        ? "Review the cut layout before exporting"
+        : "Export ZIP bundle";
 
   return (
     <div className="flex flex-col">
@@ -86,7 +100,7 @@ export function ReviewExport({
         )}
         {issues.length === 0 && !actionError && !result && (
           <p className="text-xs text-gray-400">
-            Click Prepare Review to generate design and cut previews.
+            Adjust your design on the left, then click Generate Design.
           </p>
         )}
         {issues.length === 0 && !actionError && result && (
@@ -118,7 +132,7 @@ export function ReviewExport({
           loading={generating}
           className="w-full"
         >
-          Prepare Review
+          Generate Design
         </Button>
         <Button
           variant="secondary"
@@ -126,11 +140,15 @@ export function ReviewExport({
           loading={validating}
           className="w-full"
         >
-          Fabrication Check
+          Validate Design
         </Button>
-        <Link href={`/app/projects/${projectId}/review`} className="w-full">
+        <Link
+          href={`/app/projects/${projectId}/review`}
+          className="w-full"
+          onClick={onViewCutLayout}
+        >
           <Button variant="secondary" className="w-full">
-            Review Sheet Layout →
+            View Cut Layout →
           </Button>
         </Link>
         <Button
@@ -138,14 +156,19 @@ export function ReviewExport({
           onClick={onExport}
           loading={exporting}
           disabled={!canExport}
-          title={canExport ? "Download ZIP export bundle" : "Generate first"}
+          title={exportTitle}
           className="w-full"
         >
-          Download Cut Files
+          Export Cut Files
         </Button>
-        {!canExport && result && (
+        {!canExport && result && resultValid && !hasReviewedCutLayout && (
           <p className="text-xs text-gray-400">
-            Fix errors above before downloading cut files.
+            Review the cut layout before exporting.
+          </p>
+        )}
+        {!canExport && result && !resultValid && (
+          <p className="text-xs text-gray-400">
+            Fix errors above before exporting.
           </p>
         )}
         {!canExport && enableBilling && (

@@ -409,6 +409,16 @@ class GenerateResult(BaseModel):
     generated_at: str = ""
 
 
+class PreviewResult(BaseModel):
+    """Lightweight preview — geometry only, no nesting or SVG."""
+    status: Literal["ok", "error"]
+    message: str = ""
+    part_geometries: list[PartGeometry] = Field(default_factory=list)
+    part_count: int = 0
+    slat_count: int = 0
+    has_backing: bool = False
+
+
 class ExportResult(BaseModel):
     status: Literal["ok", "error"]
     message: str = ""

@@ -21,6 +21,7 @@ from ..models import (
     CanonicalConfig,
     GenerateResult,
     PartGeometry,
+    PreviewResult,
     ValidationIssue,
     ValidationReport,
     normalize_config,
@@ -175,6 +176,66 @@ def run_pipeline(
         layout_engine=layout_engine,
         part_geometries=part_geometries,
         generated_at=_now(),
+    )
+
+
+def run_preview_pipeline(config: CanonicalConfig) -> PreviewResult:
+    """
+    Lightweight preview pipeline — geometry only, no nesting or SVG.
+    Returns part_geometries for 3D rendering.
+    """
+    config = normalize_config(config)
+
+    config_issues = validate_config(config)
+    if _has_errors(config_issues):
+        return PreviewResult(
+            status="error",
+            message="Config validation failed. " + "; ".join(i.message for i in config_issues if i.level == "error"),
+        )
+
+    x_vals, heights = generate_height_field(
+        surface=config.surface,
+        width=config.boundary.width,
+        slat_count=config.slats.count,
+    )
+
+    slat_parts = generate_slat_profiles(
+        x_vals=x_vals,
+        heights=heights,
+        slat_config=config.slats,
+        fab_config=config.fabrication,
+    )
+
+    backing_part = generate_backing_board(
+        backing_config=config.backing,
+        slat_config=config.slats,
+        n_slats=config.slats.count,
+    )
+
+    all_parts = list(slat_parts)
+    if backing_part:
+        all_parts.append(backing_part)
+
+    part_geometries: list[PartGeometry] = []
+    for part in all_parts:
+        poly = part["polygon"]
+        part_geometries.append(PartGeometry(
+            part_id=part["part_id"],
+            part_type=part["part_type"],
+            exterior=[[float(x), float(y)] for x, y in poly.exterior.coords],
+            holes=[
+                [[float(x), float(y)] for x, y in ring.coords]
+                for ring in poly.interiors
+            ],
+            bounding_box=[float(v) for v in poly.bounds],
+        ))
+
+    return PreviewResult(
+        status="ok",
+        part_geometries=part_geometries,
+        part_count=len(all_parts),
+        slat_count=len(slat_parts),
+        has_backing=backing_part is not None,
     )
 
 

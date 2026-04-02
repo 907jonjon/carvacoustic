@@ -141,11 +141,19 @@ class ConfigFabrication(BaseModel):
     tool: ConfigTool
 
 
+class NestingMode(str, Enum):
+    fast = "fast"
+    balanced = "balanced"
+    max_yield = "max_yield"
+    ffd = "ffd"
+
+
 class ConfigLayout(BaseModel):
     enabled: bool
     copies: int = Field(ge=1)
     rotation_mode: RotationMode
     preserve_grain: bool
+    nesting_mode: NestingMode = NestingMode.balanced
 
 
 class ConfigLabeling(BaseModel):

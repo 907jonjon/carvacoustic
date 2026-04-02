@@ -65,6 +65,8 @@ export const DogboneStyleSchema = z.enum(["classic", "none"]);
 
 export const RotationModeSchema = z.enum(["90_only", "any", "none"]);
 
+export const NestingModeSchema = z.enum(["fast", "balanced", "max_yield", "ffd"]);
+
 export const LabelPositionSchema = z.enum(["footer", "header", "center", "centroid", "base"]);
 
 export const ExportFormatSchema = z.enum(["dxf", "svg", "pdf", "json"]);
@@ -152,6 +154,7 @@ export const ConfigLayoutSchema = z.object({
   copies: z.number().int().min(1),
   rotation_mode: RotationModeSchema,
   preserve_grain: z.boolean(),
+  nesting_mode: NestingModeSchema.default("balanced"),
 });
 
 export const ConfigLabelingSchema = z.object({

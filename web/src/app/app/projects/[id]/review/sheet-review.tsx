@@ -47,6 +47,9 @@ export function SheetReview({ project }: { project: Project }) {
     config.layout.preserve_grain ?? false
   );
   const [copies, setCopies] = useState(config.layout.copies ?? 1);
+  const [nestingMode, setNestingMode] = useState(
+    config.layout.nesting_mode ?? "balanced"
+  );
 
   // Feedback auto-fill ref
   const feedbackRef = useRef<HTMLTextAreaElement>(null);
@@ -64,9 +67,10 @@ export function SheetReview({ project }: { project: Project }) {
         rotation_mode: rotationMode,
         preserve_grain: preserveGrain,
         copies,
+        nesting_mode: nestingMode,
       },
     };
-  }, [config, rotationMode, preserveGrain, copies]);
+  }, [config, rotationMode, preserveGrain, copies, nestingMode]);
 
   function handleGenerate() {
     generate(currentConfig());
@@ -237,6 +241,17 @@ export function SheetReview({ project }: { project: Project }) {
                 className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
               />
             </div>
+
+            <Select
+              label="Nesting Engine"
+              value={nestingMode}
+              onChange={(e) => setNestingMode(e.target.value as "fast" | "balanced" | "max_yield" | "ffd")}
+            >
+              <option value="fast">Fast — quick placement, lower utilization</option>
+              <option value="balanced">Balanced — good utilization, moderate time</option>
+              <option value="max_yield">Max Yield — best utilization, slower</option>
+              <option value="ffd">FFD (legacy) — simple row packing, fastest</option>
+            </Select>
 
             {/* Material info (read-only) */}
             <div className="mt-4 border-t border-gray-200 pt-4">
@@ -433,6 +448,21 @@ export function SheetReview({ project }: { project: Project }) {
                     {Math.round((result.sheet_utilization ?? 0) * 100)}%
                   </span>
                 </div>
+                {result.layout_engine && (
+                  <>
+                    <div className="h-8 w-px bg-gray-200" />
+                    <div className="flex flex-col">
+                      <span className="text-xs text-gray-500">Engine</span>
+                      <span className={`mt-0.5 inline-block rounded px-2 py-0.5 text-xs font-medium uppercase ${
+                        result.layout_engine === "ffd"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-green-100 text-green-700"
+                      }`}>
+                        {result.layout_engine === "ffd" ? "FFD (legacy)" : result.layout_engine}
+                      </span>
+                    </div>
+                  </>
+                )}
                 <div className="h-8 w-px bg-gray-200" />
                 <div className="flex flex-1 flex-col">
                   <span className="text-xs text-gray-500">

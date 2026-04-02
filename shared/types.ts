@@ -30,6 +30,8 @@ export type ExportFormat = "dxf" | "svg" | "pdf" | "json";
 
 export type SurfaceType = "wave" | "terrain" | "ripple" | "mountain";
 
+export type NestingMode = "fast" | "balanced" | "max_yield" | "ffd";
+
 export type SlatDistributionMode = "fit_to_boundary" | "manual";
 
 export type FlowDirection = "x" | "y" | "radial";
@@ -115,6 +117,7 @@ export interface ConfigLayout {
   copies: number;
   rotation_mode: RotationMode;
   preserve_grain: boolean;
+  nesting_mode: NestingMode;
 }
 
 export interface ConfigLabeling {
@@ -230,6 +233,7 @@ export function defaultConfig(
       copies: 1,
       rotation_mode: "90_only",
       preserve_grain: false,
+      nesting_mode: "balanced",
     },
     labeling: {
       enabled: true,

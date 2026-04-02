@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from typing import Callable
 
 from ..geometry.validate import validate_solution
 from ..models import NestJob, NestResult, SolutionState
@@ -17,6 +18,7 @@ def solve_nest(
     job: NestJob,
     mode: str | None = None,
     seed: int | None = None,
+    on_progress: "Callable[[int, int], None] | None" = None,
 ) -> NestResult:
     """
     Solve a nesting job. Returns the best solution across all seed orderings.
@@ -39,8 +41,11 @@ def solve_nest(
     orderings = generate_orderings(job.parts, effective_mode, effective_seed)
 
     best: SolutionState | None = None
+    total_seeds = len(orderings)
 
-    for order in orderings:
+    for seed_idx, order in enumerate(orderings):
+        if on_progress:
+            on_progress(seed_idx, total_seeds)
         solution = constructive_solve(
             job, order,
             {"max_candidates": mode_cfg.max_candidates, "max_per_family": mode_cfg.max_per_family},

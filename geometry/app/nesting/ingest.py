@@ -256,6 +256,7 @@ def run_nesting(
     parts: list[dict],
     config: CanonicalConfig,
     mode: str = "balanced",
+    on_progress: "Callable[[int, int], None] | None" = None,
 ) -> LayoutResult:
     """
     End-to-end nesting: profiler output + config → LayoutResult.
@@ -274,7 +275,7 @@ def run_nesting(
             len(job.parts),
             len(job.parts[0].variants) if job.parts else 0,
         )
-        result = solve_nest(job, mode=mode)
+        result = solve_nest(job, mode=mode, on_progress=on_progress)
         logger.info(
             "Nesting complete: %d sheets, %.1f%% util, %d placed, %d unplaced, %.0fms",
             result.sheets_used,

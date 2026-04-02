@@ -47,7 +47,7 @@ def run_pipeline(
 
     def _progress(step: int, name: str) -> None:
         if on_progress:
-            on_progress(step, 8, name)
+            on_progress(step, 10, name)
 
     # ── Step 1: Config-level validation ──────────────────────────────────────
     _progress(1, "Validating configuration")
@@ -113,12 +113,22 @@ def run_pipeline(
     nesting_mode = config.layout.nesting_mode.value if hasattr(config.layout, "nesting_mode") else "balanced"
     nest_backing = getattr(config.layout, "nest_backing", True)
     parts_to_nest = all_parts if nest_backing else list(slat_parts)
+
+    # Sub-progress: nesting runs from 65% to 90%, then SVG gen to 95%
     _progress(8, f"Nesting parts on sheets ({nesting_mode})")
+
+    def _nesting_progress(seed_idx: int, total_seeds: int) -> None:
+        pct = 65 + int(25 * seed_idx / max(total_seeds, 1))
+        if on_progress:
+            on_progress(8, 10, f"Nesting: seed {seed_idx + 1} of {total_seeds}")
+
     if nesting_mode == "ffd":
         layout_result = run_slat_layout(parts_to_nest, config)
         layout_result.engine = "ffd"  # type: ignore[attr-defined]
     else:
-        layout_result = run_nesting(parts_to_nest, config, mode=nesting_mode)
+        layout_result = run_nesting(parts_to_nest, config, mode=nesting_mode, on_progress=_nesting_progress)
+
+    _progress(9, "Generating cut preview")
     backing_for_svg = backing_part if nest_backing else None
     cut_preview_svg = generate_cut_preview_svg(slat_parts, backing_for_svg, layout_result, config)
     sheet_count = len(layout_result.sheets) if layout_result else 0
@@ -128,6 +138,7 @@ def run_pipeline(
         else 0.0
     )
 
+    _progress(10, "Finalizing")
     valid = not _has_errors(issues)
     status = "ok" if valid else "error"
 

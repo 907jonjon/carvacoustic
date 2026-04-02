@@ -19,7 +19,7 @@ from ..models import GenerateRequest, GenerateResult
 
 router = APIRouter(prefix="/generate", tags=["generate"])
 
-STEP_PERCENTS = {1: 5, 2: 15, 3: 30, 4: 38, 5: 42, 6: 52, 7: 62, 8: 100}
+STEP_PERCENTS = {1: 5, 2: 15, 3: 30, 4: 38, 5: 42, 6: 52, 7: 62, 8: 65, 9: 92, 10: 100}
 
 
 @router.post("", response_model=GenerateResult, dependencies=[Depends(require_api_key)])

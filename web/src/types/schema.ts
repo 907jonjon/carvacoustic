@@ -155,6 +155,7 @@ export const ConfigLayoutSchema = z.object({
   rotation_mode: RotationModeSchema,
   preserve_grain: z.boolean(),
   nesting_mode: NestingModeSchema.default("balanced"),
+  nest_backing: z.boolean().default(true),
 });
 
 export const ConfigLabelingSchema = z.object({

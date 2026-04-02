@@ -118,6 +118,7 @@ export interface ConfigLayout {
   rotation_mode: RotationMode;
   preserve_grain: boolean;
   nesting_mode: NestingMode;
+  nest_backing: boolean;
 }
 
 export interface ConfigLabeling {
@@ -234,6 +235,7 @@ export function defaultConfig(
       rotation_mode: "90_only",
       preserve_grain: false,
       nesting_mode: "balanced",
+      nest_backing: true,
     },
     labeling: {
       enabled: true,

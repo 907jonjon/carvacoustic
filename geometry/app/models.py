@@ -154,6 +154,7 @@ class ConfigLayout(BaseModel):
     rotation_mode: RotationMode
     preserve_grain: bool
     nesting_mode: NestingMode = NestingMode.balanced
+    nest_backing: bool = True
 
 
 class ConfigLabeling(BaseModel):

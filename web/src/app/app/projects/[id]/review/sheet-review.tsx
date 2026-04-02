@@ -50,6 +50,9 @@ export function SheetReview({ project }: { project: Project }) {
   const [nestingMode, setNestingMode] = useState(
     config.layout.nesting_mode ?? "balanced"
   );
+  const [nestBacking, setNestBacking] = useState(
+    config.layout.nest_backing ?? true
+  );
 
   // Feedback auto-fill ref
   const feedbackRef = useRef<HTMLTextAreaElement>(null);
@@ -68,9 +71,10 @@ export function SheetReview({ project }: { project: Project }) {
         preserve_grain: preserveGrain,
         copies,
         nesting_mode: nestingMode,
+        nest_backing: nestBacking,
       },
     };
-  }, [config, rotationMode, preserveGrain, copies, nestingMode]);
+  }, [config, rotationMode, preserveGrain, copies, nestingMode, nestBacking]);
 
   function handleGenerate() {
     generate(currentConfig());
@@ -252,6 +256,19 @@ export function SheetReview({ project }: { project: Project }) {
               <option value="max_yield">Max Yield — best utilization, slower</option>
               <option value="ffd">FFD (legacy) — simple row packing, fastest</option>
             </Select>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="nest-backing"
+                checked={nestBacking}
+                onChange={(e) => setNestBacking(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+              />
+              <label htmlFor="nest-backing" className="text-sm text-gray-700">
+                Include backing board in nesting
+              </label>
+            </div>
 
             {/* Material info (read-only) */}
             <div className="mt-4 border-t border-gray-200 pt-4">
@@ -477,6 +494,16 @@ export function SheetReview({ project }: { project: Project }) {
                     />
                   </div>
                 </div>
+              </div>
+              <div className="h-8 w-px bg-gray-200" />
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500">Part size</span>
+                <span className="text-xs font-medium text-gray-700">
+                  {config.boundary.width} × {config.slats.base_height}–{config.surface.max_depth + config.slats.base_height} {config.project.units}
+                </span>
+                <span className="text-xs text-gray-400">
+                  on {config.fabrication.material.sheet_width} × {config.fabrication.material.sheet_height} sheets
+                </span>
               </div>
 
               {/* Cut preview SVG */}

@@ -111,13 +111,16 @@ def run_pipeline(
 
     # ── Step 8: Cut preview (layout on material sheets) ────────────────────
     nesting_mode = config.layout.nesting_mode.value if hasattr(config.layout, "nesting_mode") else "balanced"
+    nest_backing = getattr(config.layout, "nest_backing", True)
+    parts_to_nest = all_parts if nest_backing else list(slat_parts)
     _progress(8, f"Nesting parts on sheets ({nesting_mode})")
     if nesting_mode == "ffd":
-        layout_result = run_slat_layout(all_parts, config)
+        layout_result = run_slat_layout(parts_to_nest, config)
         layout_result.engine = "ffd"  # type: ignore[attr-defined]
     else:
-        layout_result = run_nesting(all_parts, config, mode=nesting_mode)
-    cut_preview_svg = generate_cut_preview_svg(slat_parts, backing_part, layout_result, config)
+        layout_result = run_nesting(parts_to_nest, config, mode=nesting_mode)
+    backing_for_svg = backing_part if nest_backing else None
+    cut_preview_svg = generate_cut_preview_svg(slat_parts, backing_for_svg, layout_result, config)
     sheet_count = len(layout_result.sheets) if layout_result else 0
     sheet_utilization = (
         sum(s.utilization for s in layout_result.sheets) / len(layout_result.sheets)

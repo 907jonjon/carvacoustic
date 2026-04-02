@@ -5,6 +5,7 @@ POST /generate-stream — same pipeline with SSE progress events.
 
 import asyncio
 import json
+import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from queue import Empty, Queue
@@ -51,13 +52,23 @@ async def generate_stream(request: GenerateRequest):
             executor, run_pipeline, request.config, progress_callback
         )
 
+        last_heartbeat = time.monotonic()
         while not future.done():
+            had_data = False
             try:
                 while True:
                     event_type, data = queue.get_nowait()
                     yield f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+                    had_data = True
+                    last_heartbeat = time.monotonic()
             except Empty:
                 pass
+            # Send heartbeat every 5s to keep the connection alive during
+            # long operations (e.g., max_yield nesting).
+            now = time.monotonic()
+            if not had_data and now - last_heartbeat > 5.0:
+                yield ": heartbeat\n\n"
+                last_heartbeat = now
             await asyncio.sleep(0.1)
 
         # Drain remaining progress events

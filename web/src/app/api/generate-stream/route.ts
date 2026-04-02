@@ -5,7 +5,7 @@ import { CanonicalConfigSchema } from "@/types/schema";
 import type { ApiError } from "@/types/schema";
 import { z } from "zod";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 function apiError(code: string, message: string, status = 400): NextResponse<ApiError> {
   return NextResponse.json({ error: { code, message } }, { status });
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
   // Pipe SSE stream through with a heartbeat-based inactivity timeout.
   // Reset a 45s timer each time data arrives. If the service goes silent
   // for 45s (stuck pipeline), the stream closes.
-  const inactivityMs = 45000;
+  const inactivityMs = 120000;
   let inactivityTimer: ReturnType<typeof setTimeout>;
 
   function resetInactivity() {

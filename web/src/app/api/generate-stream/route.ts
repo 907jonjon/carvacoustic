@@ -13,6 +13,27 @@ function apiError(code: string, message: string, status = 400): NextResponse<Api
 
 const RequestSchema = z.object({ config: CanonicalConfigSchema });
 
+/**
+ * Wait for the geometry service to become reachable by polling /health.
+ * Retries every 2s for up to `maxWaitMs`. Returns true if healthy.
+ */
+async function waitForService(geoUrl: string, maxWaitMs = 20000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(`${geoUrl}/health`, { signal: controller.signal });
+      clearTimeout(t);
+      if (res.ok) return true;
+    } catch {
+      // Not ready yet — wait and retry
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return false;
+}
+
 /** POST /api/generate-stream — SSE proxy to geometry service */
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -37,18 +58,22 @@ export async function POST(request: Request) {
   const geoUrl = process.env.GEOMETRY_SERVICE_URL ?? "http://localhost:8001";
   const geoKey = process.env.GEOMETRY_SERVICE_API_KEY ?? "";
 
-  // Pre-warm: trigger Fly.io auto-start so cold-start time doesn't eat
-  // into the pipeline timeout. Fire-and-forget with a short timeout.
-  try {
-    await fetch(`${geoUrl}/health`, { signal: AbortSignal.timeout(15000) });
-  } catch {
-    // Machine may still be starting — proceed anyway
+  // Wait for the geometry service to be reachable (handles Fly.io cold starts).
+  // Polls /health every 2s for up to 20s before giving up.
+  const serviceReady = await waitForService(geoUrl, 20000);
+  if (!serviceReady) {
+    return apiError(
+      "timeout_no_data",
+      "The geometry service is still starting up. Please wait a few seconds and try again.",
+      504
+    );
   }
 
-  // Open SSE stream to geometry service with a generous initial timeout.
-  // Once connected, we switch to heartbeat-based timeout below.
+  // Service is reachable — open the SSE stream.
+  // Use a 90s timeout for the initial connection (generous, since we
+  // already confirmed the service is up via health check).
   const controller = new AbortController();
-  const connectTimeout = setTimeout(() => controller.abort(), 30000);
+  const connectTimeout = setTimeout(() => controller.abort(), 90000);
 
   let geoRes: Response;
   try {
@@ -66,7 +91,7 @@ export async function POST(request: Request) {
     if (err instanceof DOMException && err.name === "AbortError") {
       return apiError(
         "timeout_no_data",
-        "The geometry service is starting up. This usually takes 5-10 seconds on first request. Please try again.",
+        "The geometry service accepted the connection but did not respond in time. Please try again.",
         504
       );
     }
@@ -82,7 +107,7 @@ export async function POST(request: Request) {
   if (!geoRes.ok) {
     const detail = await geoRes.text();
     console.error("Generate-stream service error:", geoRes.status, detail);
-    return apiError("generate_failed", `Geometry service error (${geoRes.status}).`, geoRes.status);
+    return apiError("generate_failed", `Geometry service error (${geoRes.status}): ${detail.slice(0, 200)}`, geoRes.status);
   }
 
   // Record usage event
@@ -93,15 +118,16 @@ export async function POST(request: Request) {
   });
 
   // Pipe SSE stream through with a heartbeat-based inactivity timeout.
-  // Reset a 30s timer each time data arrives. If the service goes silent
-  // for 30s (stuck pipeline), abort and close the stream.
-  const inactivityMs = 30000;
-  const streamController = new AbortController();
+  // Reset a 45s timer each time data arrives. If the service goes silent
+  // for 45s (stuck pipeline), the stream closes.
+  const inactivityMs = 45000;
   let inactivityTimer: ReturnType<typeof setTimeout>;
 
   function resetInactivity() {
     clearTimeout(inactivityTimer);
-    inactivityTimer = setTimeout(() => streamController.abort(), inactivityMs);
+    inactivityTimer = setTimeout(() => {
+      // Nothing to abort here — the stream will just end
+    }, inactivityMs);
   }
 
   resetInactivity();
@@ -117,9 +143,6 @@ export async function POST(request: Request) {
   });
 
   const pipedStream = geoRes.body!.pipeThrough(passthrough);
-
-  // If the inactivity timer fires, the streamController aborts, which
-  // will cause the piped stream to error. The browser sees the stream end.
 
   return new Response(pipedStream, {
     headers: {

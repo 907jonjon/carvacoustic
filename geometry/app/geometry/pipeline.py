@@ -13,6 +13,7 @@ Steps:
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Callable
 
 from shapely.geometry import Polygon
 
@@ -30,8 +31,13 @@ from .export.svg_export import generate_slat_preview_svg, generate_cut_preview_s
 from .layout import run_slat_layout
 from ..nesting.ingest import run_nesting
 
+ProgressCallback = Callable[[int, int, str], None]
 
-def run_pipeline(config: CanonicalConfig) -> GenerateResult:
+
+def run_pipeline(
+    config: CanonicalConfig,
+    on_progress: ProgressCallback | None = None,
+) -> GenerateResult:
     """
     Run the full v2 geometry pipeline.
     Returns a GenerateResult with 2D SVG preview and validation report.
@@ -39,7 +45,12 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
     config = normalize_config(config)
     issues: list[ValidationIssue] = []
 
+    def _progress(step: int, name: str) -> None:
+        if on_progress:
+            on_progress(step, 8, name)
+
     # ── Step 1: Config-level validation ──────────────────────────────────────
+    _progress(1, "Validating configuration")
     config_issues = validate_config(config)
     issues.extend(config_issues)
 
@@ -50,6 +61,7 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
         )
 
     # ── Step 2: Generate height field ─────────────────────────────────────────
+    _progress(2, "Generating height field")
     x_vals, heights = generate_height_field(
         surface=config.surface,
         width=config.boundary.width,
@@ -57,6 +69,7 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
     )
 
     # ── Step 3: Generate slat profiles ────────────────────────────────────────
+    _progress(3, "Generating slat profiles")
     slat_parts = generate_slat_profiles(
         x_vals=x_vals,
         heights=heights,
@@ -65,6 +78,7 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
     )
 
     # ── Step 4: Generate backing board ────────────────────────────────────────
+    _progress(4, "Generating backing board")
     backing_part = generate_backing_board(
         backing_config=config.backing,
         slat_config=config.slats,
@@ -76,6 +90,7 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
         all_parts.append(backing_part)
 
     # ── Step 5: Place labels ──────────────────────────────────────────────────
+    _progress(5, "Placing labels")
     if config.labeling.enabled:
         for part in all_parts:
             centroid = part["polygon"].centroid
@@ -86,13 +101,16 @@ def run_pipeline(config: CanonicalConfig) -> GenerateResult:
             }
 
     # ── Step 6: Geometry validation ───────────────────────────────────────────
+    _progress(6, "Validating geometry")
     geom_issues = validate_geometry_v2(all_parts, config)
     issues.extend(geom_issues)
 
     # ── Step 7: SVG preview ───────────────────────────────────────────────────
+    _progress(7, "Generating design preview")
     svg_preview = generate_slat_preview_svg(slat_parts, backing_part, config)
 
     # ── Step 8: Cut preview (layout on material sheets) ────────────────────
+    _progress(8, "Nesting parts on sheets")
     layout_result = run_nesting(all_parts, config)
     cut_preview_svg = generate_cut_preview_svg(slat_parts, backing_part, layout_result, config)
     sheet_count = len(layout_result.sheets) if layout_result else 0

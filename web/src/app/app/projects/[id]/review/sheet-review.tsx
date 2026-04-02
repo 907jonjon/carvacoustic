@@ -8,20 +8,22 @@
  * before downloading cut files.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { SlidingPuzzle } from "@/components/editor/SlidingPuzzle";
+import { useGenerateStream } from "@/hooks/useGenerateStream";
 import type { Database } from "@/types/database";
 import type { CanonicalConfig } from "@/types/schema";
 import { defaultConfig } from "@/types/schema";
-import type { GenerateResult } from "@/components/editor/SvgPreview";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 
 export function SheetReview({ project }: { project: Project }) {
   // Merge stored config with defaults (same pattern as project-editor)
-  const [config, setConfig] = useState<CanonicalConfig>(() => {
+  const [config] = useState<CanonicalConfig>(() => {
     const stored = project.draft_config as Partial<CanonicalConfig>;
     const defaults = defaultConfig(stored.project?.name ?? project.name);
     return {
@@ -33,10 +35,9 @@ export function SheetReview({ project }: { project: Project }) {
     };
   });
 
-  const [result, setResult] = useState<GenerateResult | null>(null);
-  const [generating, setGenerating] = useState(false);
+  const { generating, progress, result, error, generate, clearError, setResult } = useGenerateStream();
   const [exporting, setExporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Layout overrides
   const [rotationMode, setRotationMode] = useState(
@@ -46,6 +47,13 @@ export function SheetReview({ project }: { project: Project }) {
     config.layout.preserve_grain ?? false
   );
   const [copies, setCopies] = useState(config.layout.copies ?? 1);
+
+  // Feedback auto-fill ref
+  const feedbackRef = useRef<HTMLTextAreaElement>(null);
+  const [feedbackCategory, setFeedbackCategory] = useState("Bug");
+  const [feedbackMsg, setFeedbackMsg] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [showFeedback, setShowFeedback] = useState(false);
 
   // Build config with current layout overrides
   const currentConfig = useCallback((): CanonicalConfig => {
@@ -60,33 +68,52 @@ export function SheetReview({ project }: { project: Project }) {
     };
   }, [config, rotationMode, preserveGrain, copies]);
 
-  // Generate / re-nest
-  async function handleGenerate() {
-    setGenerating(true);
-    setError(null);
+  function handleGenerate() {
+    generate(currentConfig());
+  }
+
+  function handleSendFeedback(errorMessage: string, errorCode: string, errorStep?: string) {
+    const details = [
+      `Error: ${errorMessage}`,
+      `Code: ${errorCode}`,
+      errorStep ? `Failed at: ${errorStep}` : null,
+      `Project: ${project.name}`,
+      `Rotation: ${rotationMode}`,
+      `Grain lock: ${preserveGrain}`,
+      `Copies: ${copies}`,
+      `Sheet: ${config.fabrication.material.sheet_width}x${config.fabrication.material.sheet_height}`,
+    ].filter(Boolean).join("\n");
+
+    setFeedbackMsg(details);
+    setFeedbackCategory("Bug");
+    setShowFeedback(true);
+    setTimeout(() => feedbackRef.current?.focus(), 100);
+  }
+
+  async function submitFeedback() {
+    setFeedbackStatus("sending");
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ config: currentConfig() }),
+        body: JSON.stringify({
+          category: feedbackCategory,
+          message: feedbackMsg,
+          project_id: project.id,
+        }),
       });
-      const data: GenerateResult = await res.json();
-      if (!res.ok) {
-        const err = data as unknown as { error?: { message?: string } };
-        throw new Error(err?.error?.message ?? "Generate failed.");
-      }
-      setResult(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Generate failed.");
-    } finally {
-      setGenerating(false);
+      if (!res.ok) throw new Error("Submit failed.");
+      setFeedbackStatus("sent");
+      setTimeout(() => { setShowFeedback(false); setFeedbackStatus("idle"); }, 3000);
+    } catch {
+      setFeedbackStatus("error");
     }
   }
 
   // Export / download ZIP
   async function handleExport() {
     setExporting(true);
-    setError(null);
+    setExportError(null);
     try {
       const res = await fetch("/api/export", {
         method: "POST",
@@ -108,7 +135,7 @@ export function SheetReview({ project }: { project: Project }) {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Export failed.");
+      setExportError(err instanceof Error ? err.message : "Export failed.");
     } finally {
       setExporting(false);
     }
@@ -278,13 +305,74 @@ export function SheetReview({ project }: { project: Project }) {
 
         {/* Main area — sheet cards */}
         <div className="flex-1 overflow-y-auto bg-gray-100 p-6">
-          {error && (
+          {/* Export error */}
+          {exportError && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
+              {exportError}
             </div>
           )}
 
-          {!result && !generating && (
+          {/* Generation error with Try Again / Send Feedback */}
+          {error && !generating && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4">
+              <p className="text-sm font-medium text-red-700">Generation failed</p>
+              <p className="mt-1 text-sm text-red-600">{error.message}</p>
+              {error.step && (
+                <p className="mt-1 text-xs text-red-500">
+                  Failed during: {error.step} ({error.percent ?? 0}% complete)
+                </p>
+              )}
+              <div className="mt-3 flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => { clearError(); handleGenerate(); }}
+                >
+                  Try Again
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleSendFeedback(error.message, error.code, error.step)}
+                >
+                  Send Feedback
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Feedback form (shown when Send Feedback is clicked) */}
+          {showFeedback && (
+            <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
+              <h3 className="mb-2 text-sm font-medium text-gray-900">Report Issue</h3>
+              {feedbackStatus === "sent" ? (
+                <p className="text-sm text-green-600">Feedback submitted. Thank you!</p>
+              ) : (
+                <>
+                  <textarea
+                    ref={feedbackRef}
+                    value={feedbackMsg}
+                    onChange={(e) => setFeedbackMsg(e.target.value)}
+                    rows={5}
+                    className="mb-2 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={submitFeedback} loading={feedbackStatus === "sending"}>
+                      Submit
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowFeedback(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                  {feedbackStatus === "error" && (
+                    <p className="mt-1 text-xs text-red-600">Failed to submit. Please try again.</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!result && !generating && !error && (
             <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
               <div className="rounded-lg border-2 border-dashed border-gray-300 p-12">
                 <svg
@@ -305,34 +393,22 @@ export function SheetReview({ project }: { project: Project }) {
             </div>
           )}
 
+          {/* Generating state — progress bar + puzzle */}
           {generating && (
-            <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-              <svg
-                className="h-10 w-10 animate-spin text-brand-600"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
+            <div className="flex flex-col items-center justify-center gap-6 py-10">
+              <div className="w-full max-w-md">
+                <ProgressBar
+                  percent={progress?.percent ?? 0}
+                  label={progress?.name ?? "Starting..."}
+                  stepInfo={progress ? `Step ${progress.step} of ${progress.totalSteps}` : undefined}
                 />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                />
-              </svg>
-              <p className="text-sm text-gray-500">
-                Running geometry pipeline and nesting parts on sheets...
-              </p>
+              </div>
+              <SlidingPuzzle />
             </div>
           )}
 
-          {result && result.status === "ok" && (
+          {/* Results */}
+          {result && result.status === "ok" && !generating && (
             <>
               {/* Summary bar */}
               <div className="mb-6 flex items-center gap-6 rounded-lg border border-gray-200 bg-white px-5 py-3">
@@ -417,7 +493,7 @@ export function SheetReview({ project }: { project: Project }) {
             </>
           )}
 
-          {result && result.status === "error" && (
+          {result && result.status === "error" && !generating && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
               <p className="text-sm font-medium text-red-700">
                 Generation failed

@@ -2,17 +2,91 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --font-sans: ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Code", monospace;
+/* ── CarvAcoustic design tokens ── */
+
+.ca-root,
+.ca-root [data-mode="light"] {
+  --bg: #f5f0ea; --bg2: #ffffff; --bg3: #ede8e2;
+  --border: #d8cfc6; --border2: #c4b8ae;
+  --text1: #2a1f18; --text2: #5a4a3f; --text3: #8a7060; --text4: #b09888;
+  --accent: #b8660e; --accent-h: #d4831a; --accent-dim: rgba(184,102,14,0.08);
+  --btn-fg: #ffffff;
+  --header-bg: rgba(245,240,234,0.92);
+  --grid-line: rgba(184,102,14,0.06);
+  --danger: #dc2626; --danger-dim: rgba(220,38,38,0.08);
+  --success: #16a34a; --success-dim: rgba(22,163,74,0.08);
 }
 
-* {
-  box-sizing: border-box;
+[data-mode="dark"].ca-root,
+[data-mode="dark"] {
+  --bg: #13100d; --bg2: #1e1916; --bg3: #16130f;
+  --border: #2d2520; --border2: #3d302a;
+  --text1: #e8ddd4; --text2: #9a8c82; --text3: #6b5f55; --text4: #4d4440;
+  --accent: #d4831a; --accent-h: #e8941f; --accent-dim: rgba(212,131,26,0.08);
+  --btn-fg: #0f0d0a;
+  --header-bg: rgba(19,16,13,0.92);
+  --grid-line: rgba(212,131,26,0.04);
+  --danger: #ef4444; --danger-dim: rgba(239,68,68,0.08);
+  --success: #22c55e; --success-dim: rgba(34,197,94,0.08);
 }
+
+* { box-sizing: border-box; }
 
 body {
-  font-family: var(--font-sans);
-  background-color: #f9fafb;
-  color: #111827;
+  font-family: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+  background-color: var(--bg);
+  color: var(--text1);
+  transition: background-color 0.25s, color 0.25s;
 }
+
+/* ── Typography ── */
+.font-display { font-family: 'Fraunces', Georgia, serif; }
+.font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+/* ── Tailwind overrides — map brand/gray to tokens ── */
+.bg-white { background-color: var(--bg2) !important; }
+.bg-gray-50 { background-color: var(--bg) !important; }
+.bg-gray-100 { background-color: var(--bg3) !important; }
+.border-gray-200 { border-color: var(--border) !important; }
+.border-gray-300 { border-color: var(--border2) !important; }
+.text-gray-900 { color: var(--text1) !important; }
+.text-gray-700 { color: var(--text2) !important; }
+.text-gray-600 { color: var(--text2) !important; }
+.text-gray-500 { color: var(--text3) !important; }
+.text-gray-400 { color: var(--text4) !important; }
+.text-gray-300 { color: var(--text4) !important; }
+.bg-brand-600 { background-color: var(--accent) !important; }
+.bg-brand-700 { background-color: var(--accent-h) !important; }
+.hover\:bg-brand-700:hover { background-color: var(--accent-h) !important; }
+.bg-brand-50 { background-color: var(--accent-dim) !important; }
+.text-brand-600 { color: var(--accent) !important; }
+.text-brand-700 { color: var(--accent-h) !important; }
+.hover\:text-brand-600:hover { color: var(--accent) !important; }
+.hover\:text-brand-700:hover { color: var(--accent-h) !important; }
+.ring-brand-500 { --tw-ring-color: var(--accent) !important; }
+.focus-visible\:ring-brand-500:focus-visible { --tw-ring-color: var(--accent) !important; }
+.border-brand-500 { border-color: var(--accent) !important; }
+.focus\:border-brand-500:focus { border-color: var(--accent) !important; }
+.focus\:ring-brand-500:focus { --tw-ring-color: var(--accent) !important; }
+.hover\:bg-gray-50:hover { background-color: var(--bg3) !important; }
+.hover\:bg-gray-100:hover { background-color: var(--bg3) !important; }
+.hover\:text-gray-700:hover { color: var(--text2) !important; }
+.hover\:text-gray-900:hover { color: var(--text1) !important; }
+.hover\:text-gray-600:hover { color: var(--text2) !important; }
+.divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+.bg-brand-300 { background-color: var(--accent-dim) !important; }
+.disabled\:bg-brand-300:disabled { background-color: var(--accent-dim) !important; }
+.placeholder-gray-400::placeholder { color: var(--text4) !important; }
+
+/* Card hover effects */
+.ca-card:hover {
+  border-color: rgba(184,102,14,0.35) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px rgba(184,102,14,0.1), 0 8px 24px rgba(0,0,0,0.09);
+}
+[data-mode="dark"] .ca-card:hover {
+  border-color: rgba(212,131,26,0.4) !important;
+  box-shadow: 0 0 0 1px rgba(212,131,26,0.12), 0 12px 36px rgba(0,0,0,0.45);
+}
+.ca-card:hover .ca-card-open { opacity: 1 !important; }
+.ca-new-card:hover { border-color: var(--accent) !important; background: var(--accent-dim) !important; }

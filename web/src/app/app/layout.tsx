@@ -18,9 +18,9 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppNav userEmail={user.email ?? null} />
-      <div className="flex flex-1 flex-col">{children}</div>
+      <div style={{ display: 'flex', flex: 1, flexDirection: 'column' }}>{children}</div>
     </div>
   );
 }
